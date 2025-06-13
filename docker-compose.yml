@@ -18,12 +18,17 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
+      - TZ=${TZ:-UTC}
       - WEBDAV_USERNAME=${WEBDAV_USER}
       - WEBDAV_PASSWORD=${WEBDAV_PASSWORD}
-      - WEBDAV_HOST=${WEBDAV_HOST:-webdav-server}
-      - WEBDAV_PORT_HTTP
-      - WEBDAV_PORT_HTTPS
-      - WEBDAV_STATUS_PORT
+      - WEBDAV_HOST=${WEBDAV_HOST:-localhost}
+      - WEBDAV_PORT_HTTP=${WEBDAV_PORT_HTTP}
+      - WEBDAV_PORT_HTTPS=${WEBDAV_PORT_HTTPS}
+      - WEBDAV_STATUS_PORT=${WEBDAV_STATUS_PORT}
+      - WEBDAV_PATH=${WEBDAV_PATH:-/webdav}
+      - NGINX_WORKER_PROCESSES=${NGINX_WORKER_PROCESSES:-auto}
+      - NGINX_WORKER_CONNECTIONS=${NGINX_WORKER_CONNECTIONS:-1024}
+      - CLIENT_MAX_BODY_SIZE=${CLIENT_MAX_BODY_SIZE:-0}
     networks:
       - medavault-network
     restart: unless-stopped
@@ -40,39 +45,54 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
-      - FILESTASH_HOST=${FILESTASH_HOST:-filestash-client}
-      - FILESTASH_PORT
+      - TZ=${TZ:-UTC}
+      - FILESTASH_HOST=${FILESTASH_HOST:-localhost}
+      - FILESTASH_PORT=${FILESTASH_PORT}
       - APPLICATION_URL=http://${FILESTASH_HOST:-localhost}:${FILESTASH_PORT}
-      - WEBDAV_HOST=${WEBDAV_HOST:-webdav-server}
-      - WEBDAV_PORT_HTTP
-      - WEBDAV_USER
-      - WEBDAV_PASSWORD
+      - WEBDAV_HOST=${WEBDAV_HOST:-localhost}
+      - WEBDAV_PORT_HTTP=${WEBDAV_PORT_HTTP}
+      - WEBDAV_USER=${WEBDAV_USER}
+      - WEBDAV_PASSWORD=${WEBDAV_PASSWORD}
+      - WEBDAV_PATH=${WEBDAV_PATH:-/webdav}
+      - FILESTASH_CONFIG=/app/data/state/filestash.conf
+      - APP_LISTEN=0.0.0.0:8334
     depends_on:
       - webdav-server
     networks:
       - medavault-network
     restart: unless-stopped
-    user: "1000:1000"
+    user: "${PUID:-1000}:${PGID:-1000}"
 
   # Apache Camel Integration Service
   camel-integration:
-    build: ./camel-integration
+    build:
+      context: ./camel-integration
+      dockerfile: Dockerfile
     container_name: camel-integration
     env_file: .env
     volumes:
-      - ${STORAGE_PATH}:/app/storage
-      - ${LOG_PATH}:/app/logs
-      - ./config:/app/config
+      - ./camel-integration:/app
+      - ./storage:/app/storage
+      - ./processed:/app/processed
+      - ./logs:/app/logs
+      - ./config/application.properties:/app/config/application.properties
     environment:
-      - NODE_ENV=${NODE_ENV}
-      - LOG_LEVEL=${LOG_LEVEL}
+      - TZ=${TZ:-UTC}
+      - JAVA_OPTS=-Dwebdav.url=http://${WEBDAV_HOST:-webdav-server}:${WEBDAV_PORT_HTTP}${WEBDAV_PATH:-/webdav}
+      - WEBDAV_USER=${WEBDAV_USER}
+      - WEBDAV_PASSWORD=${WEBDAV_PASSWORD}
       - WEBDAV_HOST=${WEBDAV_HOST:-webdav-server}
-      - WEBDAV_PORT_HTTP
-      - WEBDAV_USER
-      - WEBDAV_PASSWORD
-      - BACKEND_HOST=${BACKEND_HOST:-localhost}
-      - BACKEND_PORT
-    working_dir: /app
+      - WEBDAV_PORT_HTTP=${WEBDAV_PORT_HTTP}
+      - WEBDAV_PATH=${WEBDAV_PATH:-/webdav}
+      - BACKEND_HOST=${BACKEND_HOST:-medavault-backend}
+      - BACKEND_PORT=${BACKEND_PORT}
+      - API_BASE_PATH=${API_BASE_PATH:-/api}
+      - MEDAVAULT_API_URL=http://${BACKEND_HOST:-medavault-backend}:${BACKEND_PORT}${API_BASE_PATH:-/api}
+      - POLL_INTERVAL=${POLL_INTERVAL:-10000}
+      - PROCESSING_ENABLED=${PROCESSING_ENABLED:-true}
+      - STORAGE_PATH=${STORAGE_PATH:-/app/storage}
+      - PROCESSED_PATH=${PROCESSED_PATH:-/app/processed}
+      - LOG_PATH=${LOG_PATH:-/app/logs}
     depends_on:
       - webdav-server
       - medavault-backend
@@ -86,9 +106,9 @@ services:
     container_name: medavault-db
     env_file: .env
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB=${POSTGRES_DB}
+      POSTGRES_USER=${POSTGRES_USER}
+      POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     volumes:
       - medavault-data:/var/lib/postgresql/data
       - ./config/init-db.sql:/docker-entrypoint-initdb.d/init.sql
@@ -100,24 +120,38 @@ services:
 
   # MedaVault API
   medavault-backend:
-    image: node:18-alpine
+    build:
+      context: ./medavault-backend
+      dockerfile: Dockerfile
     container_name: medavault-backend
     env_file: .env
     ports:
-      - "${BACKEND_PORT}:8084"
+      - "${BACKEND_PORT}:${BACKEND_PORT}"
     volumes:
       - ./medavault-backend:/app
-      - ${PROCESSED_PATH}:/app/processed
-    working_dir: /app
-    command: sh -c "npm install && npm start"
+      - backend-node-modules:/app/node_modules
+      - ./storage:/app/storage
+      - ./processed:/app/processed
+      - ./logs:/app/logs
     environment:
-      - NODE_ENV=${NODE_ENV}
-      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${DB_HOST}:${DB_PORT}/${POSTGRES_DB}
-      - STORAGE_PATH=/app/processed
-      - LOG_LEVEL=${LOG_LEVEL}
-      - BACKEND_HOST=${BACKEND_HOST:-localhost}
-      - BACKEND_PORT
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=${BACKEND_PORT}
+      - BACKEND_HOST=${BACKEND_HOST:-0.0.0.0}
+      - BACKEND_PORT=${BACKEND_PORT}
       - API_BASE_PATH=${API_BASE_PATH:-/api}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${POSTGRES_DB}
+      - DB_USER=${POSTGRES_USER}
+      - DB_PASSWORD=${POSTGRES_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET:-your_jwt_secret}
+      - WEBDAV_URL=http://${WEBDAV_HOST:-webdav-server}:${WEBDAV_PORT_HTTP}${WEBDAV_PATH:-/webdav}
+      - WEBDAV_USER=${WEBDAV_USER}
+      - WEBDAV_PASSWORD=${WEBDAV_PASSWORD}
+      - STORAGE_PATH=${STORAGE_PATH:-/app/storage}
+      - PROCESSED_PATH=${PROCESSED_PATH:-/app/processed}
+      - LOG_PATH=${LOG_PATH:-/app/logs}
     depends_on:
       - medavault-db
     networks:
@@ -126,23 +160,35 @@ services:
 
   # Web UI Dashboard
   web-dashboard:
-    image: nginx:alpine
+    build:
+      context: ./web-dashboard
+      dockerfile: Dockerfile
     container_name: web-dashboard
     env_file: .env
     ports:
       - "${DASHBOARD_PORT}:80"
     volumes:
-      - ./web-dashboard:/usr/share/nginx/html:ro
-      - ./config/dashboard-nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./web-dashboard:/usr/share/nginx/html
+      - ./config/dashboard-nginx.conf:/etc/nginx/conf.d/default.conf
     environment:
-      - DASHBOARD_PORT
-      - DASHBOARD_HOST=${DASHBOARD_HOST:-localhost}
+      - TZ=${TZ:-UTC}
       - BACKEND_HOST=${BACKEND_HOST:-localhost}
-      - BACKEND_PORT
-      - WEBDAV_HOST=${WEBDAV_HOST:-webdav-server}
-      - WEBDAV_PORT_HTTP
-      - WEBDAV_STATUS_PORT
-      - FILESTASH_PORT
+      - BACKEND_PORT=${BACKEND_PORT}
+      - API_BASE_PATH=${API_BASE_PATH:-/api}
+      - WEBDAV_HOST=${WEBDAV_HOST:-localhost}
+      - WEBDAV_PORT_HTTP=${WEBDAV_PORT_HTTP}
+      - WEBDAV_PORT_HTTPS=${WEBDAV_PORT_HTTPS}
+      - WEBDAV_STATUS_PORT=${WEBDAV_STATUS_PORT}
+      - WEBDAV_PATH=${WEBDAV_PATH:-/webdav}
+      - WEBDAV_USER=${WEBDAV_USER}
+      - WEBDAV_PASSWORD=${WEBDAV_PASSWORD}
+      - FILESTASH_HOST=${FILESTASH_HOST:-localhost}
+      - FILESTASH_PORT=${FILESTASH_PORT}
+      - DASHBOARD_HOST=${DASHBOARD_HOST:-0.0.0.0}
+      - DASHBOARD_PORT=${DASHBOARD_PORT}
+      - NGINX_WORKER_PROCESSES=${NGINX_WORKER_PROCESSES:-auto}
+      - NGINX_WORKER_CONNECTIONS=${NGINX_WORKER_CONNECTIONS:-1024}
+      - CLIENT_MAX_BODY_SIZE=${CLIENT_MAX_BODY_SIZE:-0}
     networks:
       - medavault-network
     restart: unless-stopped
