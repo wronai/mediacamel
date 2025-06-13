@@ -1,8 +1,8 @@
-# WebDAV + Apache Camel + MedaVault Complete System
+# MedaVault - Secure Media Management System
 
-🌐 **Kompletny system** integrujący WebDAV server, web-based klient (Filestash), Apache Camel i MedaVault Photo Vault.
+🌐 A complete media management system with WebDAV support, Apache Camel integration, and a modern web interface.
 
-## 🎯 Architektura Systemu
+## 🎯 System Architecture
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐    ┌──────────────────┐
@@ -19,59 +19,86 @@
                        └──────────────────┘    └─────────────────┘
 ```
 
-## 🚀 Komponenty Systemu
+## 🚀 System Components
 
 ### 1. **WebDAV Server** (nginx) - Port 8081
-- Serwer WebDAV z autoryzacją
-- Upload/download plików przez protokół WebDAV
-- Integracja z Filestash i Camel
+- Secure WebDAV server with authentication
+- File upload/download via WebDAV protocol
+- Integration with Filestash and Camel
+- Supports multiple concurrent connections
 
 ### 2. **Filestash Web Client** - Port 8082
-- Web-based interface dla WebDAV
-- Obsługuje SFTP, S3, FTP, WebDAV, Git i więcej
-- Drag & drop upload z przeglądarki
+- Modern web-based file manager
+- Supports multiple protocols: WebDAV, S3, SFTP, Git, and more
+- Drag & drop file uploads
+- File previews and thumbnails
 - Open source (AGPL-3.0)
 
 ### 3. **Apache Camel Integration**
-- Wykorzystuje Sardine WebDAV client
-- Polling WebDAV server dla nowych plików
-- Automatyczne przetwarzanie (thumbnails, konwersja)
-- Routing do MedaVault API
+- Monitors WebDAV for new files
+- Processes media files (images, videos, documents)
+- Generates thumbnails and extracts metadata
+- Routes files to appropriate storage
+- Handles error conditions and retries
 
 ### 4. **MedaVault Backend API** - Port 8083
-- RESTful API dla zarządzania mediami
-- PostgreSQL database z metadanymi
-- Generowanie miniatur (Sharp.js)
-- Statystyki i monitoring
+- RESTful API for media management
+- PostgreSQL database for metadata
+- User authentication and authorization
+- Media processing and transformation
+- Search and filtering capabilities
 
-### 5. **Web Dashboard** - Port 8080
-- Monitoring statusu systemu
-- Statystyki przetwarzania
-- Podgląd ostatnich mediów
-- Logi systemowe w czasie rzeczywistym
+### 5. **Web Dashboard** - Port 8085
+- System monitoring and statistics
+- Media gallery and preview
+- User and permission management
+- Real-time logs and notifications
 
-## 🔧 Quick Start
+## 🚀 Quick Start
 
-### 1. Uruchomienie systemu
+### Prerequisites
+- Docker 20.10.0+
+- Docker Compose 2.0.0+
+- 4GB RAM (minimum)
+- 10GB free disk space
+
+### 1. Clone and Setup
 ```bash
-# Sklonuj/pobierz projekt
-cd webdav-camel-medavault-system
+# Clone the repository
+git clone https://github.com/wronai/mediacamel.git
+cd mediacamel
 
-# Uruchom wszystkie usługi
-./scripts/start-system.sh
+# Copy and configure environment variables
+cp .env.example .env
+# Edit .env file if needed
+
+# Make setup script executable
+chmod +x setup.sh
 ```
 
-### 2. Dostęp do interfejsów
-- **📊 Dashboard:** http://localhost:8080
-- **🌐 WebDAV Direct:** http://localhost:8081/webdav/
-- **📁 Filestash Client:** http://localhost:8082
-- **🔧 MedaVault API:** http://localhost:8083/health
-
-### 3. Dane logowania WebDAV
+### 2. Start the System
+```bash
+# Build and start all services
+./setup.sh
 ```
-URL: http://localhost:8081/webdav/
+
+### 3. Access the Services
+- **🌐 Web Dashboard:** http://localhost:8085
+- **📁 WebDAV Server:** http://localhost:8081
+- **🖥️ Filestash Client:** http://localhost:8082
+- **🔧 API Documentation:** http://localhost:8083/api-docs
+
+### 4. WebDAV Credentials
+```
+URL: http://localhost:8081
 Username: webdav
 Password: medavault123
+```
+
+### 5. Test the Connection
+```bash
+# Run the test script
+./scripts/test-webdav.sh
 ```
 
 ## 📤 Sposoby Upload-u Plików
@@ -360,9 +387,41 @@ docker-compose logs | logstash -f logstash.conf
 4. Test thoroughly
 5. Submit pull request
 
+## 📝 WebDAV Connection Instructions and Usage Guide
+
+### Connecting to WebDAV
+
+To connect to the WebDAV server, use the following URL: `http://localhost:8081/webdav/`
+
+### Uploading Files
+
+To upload a file, use the `PUT` method with the file path as the request body. For example:
+```bash
+curl -u webdav:medavault123 \
+     -T test.txt \
+     "http://localhost:8081/webdav/test.txt"
+```
+
+### Downloading Files
+
+To download a file, use the `GET` method with the file path as the request URL. For example:
+```bash
+curl -u webdav:medavault123 \
+     "http://localhost:8081/webdav/test.txt"
+```
+
+### Deleting Files
+
+To delete a file, use the `DELETE` method with the file path as the request URL. For example:
+```bash
+curl -u webdav:medavault123 \
+     -X DELETE \
+     "http://localhost:8081/webdav/test.txt"
+```
+
 ## 📄 License
 
-This project is licensed under the MIT License.
+This project is licensed under the Apache 2.0 License.
 
 ## 🆘 Support
 

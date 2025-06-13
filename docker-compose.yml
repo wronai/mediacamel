@@ -37,11 +37,10 @@ services:
 
   # Apache Camel Integration Service
   camel-integration:
-    image: openjdk:11-jre-slim
+    build: ./camel-integration
     container_name: camel-integration
     env_file: .env
     volumes:
-      - ./camel-integration:/app
       - ${STORAGE_PATH}:/app/storage
       - ${LOG_PATH}:/app/logs
       - ./config:/app/config
@@ -49,12 +48,6 @@ services:
       - NODE_ENV=${NODE_ENV}
       - LOG_LEVEL=${LOG_LEVEL}
     working_dir: /app
-    command: bash -c "
-      apt-get update &&
-      apt-get install -y curl wget unzip &&
-      curl -s https://get.sdkman.io | bash &&
-      bash -c 'source ~/.sdkman/bin/sdkman-init.sh && sdk install groovy' &&
-      groovy CamelWebDAVProcessor.groovy"
     depends_on:
       - webdav-server
       - medavault-backend
