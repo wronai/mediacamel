@@ -1,0 +1,131 @@
+services:
+  # WebDAV Server (nginx with WebDAV module)
+  webdav-server:
+    image: nginx:alpine
+    container_name: webdav-server
+    env_file:
+      - .env
+    ports:
+      - "${WEBDAV_PORT_HTTP}:80"
+      - "${WEBDAV_PORT_HTTPS}:443"
+    volumes:
+      - ./config/webdav-nginx.conf:/etc/nginx/nginx.conf:ro
+      - ${INCOMING_PATH}:/var/www/webdav:rw
+      - ./config/ssl:/etc/nginx/ssl:ro
+    environment:
+      - WEBDAV_USERNAME=${WEBDAV_USER}
+      - WEBDAV_PASSWORD=${WEBDAV_PASSWORD}
+    networks:
+      - medavault-network
+    restart: unless-stopped
+
+  # Filestash - Web-based WebDAV Client
+  filestash-client:
+    image: machines/filestash:latest
+    container_name: filestash-client
+    env_file:
+      - .env
+    ports:
+      - "${FILESTASH_PORT}:8334"
+    volumes:
+      - ./config/filestash:/app/data/state:rw
+    environment:
+      - APPLICATION_URL=http://localhost:${FILESTASH_PORT}
+    depends_on:
+      - webdav-server
+    networks:
+      - medavault-network
+    restart: unless-stopped
+
+  # Apache Camel Integration Service
+  camel-integration:
+    image: openjdk:11-jre-slim
+    container_name: camel-integration
+    env_file:
+      - .env
+    volumes:
+      - ./camel-integration:/app
+      - ${STORAGE_PATH}:/app/storage
+      - ${LOG_PATH}:/app/logs
+      - ./config:/app/config
+    environment:
+      - NODE_ENV=${NODE_ENV}
+      - LOG_LEVEL=${LOG_LEVEL}
+    working_dir: /app
+    command: bash -c "
+      apt-get update &&
+      apt-get install -y curl wget &&
+      curl -s https://get.sdkman.io | bash &&
+      bash -c 'source ~/.sdkman/bin/sdkman-init.sh && sdk install groovy' &&
+      groovy CamelWebDAVProcessor.groovy"
+    depends_on:
+      - webdav-server
+      - medavault-backend
+    networks:
+      - medavault-network
+    restart: unless-stopped
+
+  # MedaVault Backend (PostgreSQL + API)
+  medavault-db:
+    image: postgres:14
+    container_name: medavault-db
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - medavault-data:/var/lib/postgresql/data
+      - ./config/init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "${DB_PORT}:5432"
+    networks:
+      - medavault-network
+    restart: unless-stopped
+
+  # MedaVault API
+  medavault-backend:
+    image: node:18-alpine
+    container_name: medavault-backend
+    env_file:
+      - .env
+    ports:
+      - "${BACKEND_PORT}:3000"
+    volumes:
+      - ./medavault-backend:/app
+      - ${PROCESSED_PATH}:/app/processed
+    working_dir: /app
+    command: sh -c "npm install && npm start"
+    environment:
+      - NODE_ENV=${NODE_ENV}
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${DB_HOST}:${DB_PORT}/${POSTGRES_DB}
+      - STORAGE_PATH=/app/processed
+      - LOG_LEVEL=${LOG_LEVEL}
+    depends_on:
+      - medavault-db
+    networks:
+      - medavault-network
+    restart: unless-stopped
+
+  # Web UI Dashboard
+  web-dashboard:
+    image: nginx:alpine
+    container_name: web-dashboard
+    env_file:
+      - .env
+    ports:
+      - "8085:80"
+    volumes:
+      - ./web-dashboard:/usr/share/nginx/html:ro
+      - ./config/dashboard-nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - medavault-network
+    restart: unless-stopped
+
+networks:
+  ${NETWORK_NAME}:
+    driver: bridge
+
+volumes:
+  medavault-data:

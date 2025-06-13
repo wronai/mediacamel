@@ -1,0 +1,75 @@
+.service-card {
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.service-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.stat-box {
+    padding: 10px;
+}
+
+.stat-number {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #0d6efd;
+}
+
+.stat-label {
+    font-size: 0.9rem;
+    color: #6c757d;
+    text-transform: uppercase;
+}
+
+.media-thumbnail {
+    width: 100%;
+    height: 150px;
+    object-fit: cover;
+    border-radius: 8px;
+}
+
+.media-card {
+    transition: all 0.3s ease;
+}
+
+.media-card:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+.log-entry {
+    margin-bottom: 5px;
+    padding: 5px;
+    border-radius: 3px;
+}
+
+.log-entry.info {
+    background-color: rgba(13, 202, 240, 0.1);
+}
+
+.log-entry.success {
+    background-color: rgba(25, 135, 84, 0.1);
+}
+
+.log-entry.warning {
+    background-color: rgba(255, 193, 7, 0.1);
+}
+
+.log-entry.error {
+    background-color: rgba(220, 53, 69, 0.1);
+}
+
+.badge-online {
+    background-color: #28a745 !important;
+}
+
+.badge-offline {
+    background-color: #dc3545 !important;
+}
+
+.navbar-brand {
+    font-weight: bold;
+}

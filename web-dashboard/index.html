@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebDAV + Camel + MedaVault Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="css/dashboard.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-cloud-arrow-up"></i>
+                WebDAV + MedaVault System
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="#" id="refreshBtn">
+                    <i class="bi bi-arrow-clockwise"></i>
+                    Odśwież
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <!-- Service Status Row -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card service-card" id="webdav-status">
+                    <div class="card-body text-center">
+                        <i class="bi bi-server display-4 text-primary"></i>
+                        <h5 class="card-title">WebDAV Server</h5>
+                        <span class="badge bg-secondary" id="webdav-badge">Sprawdzanie...</span>
+                        <p class="card-text small mt-2">Port: 8081</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card service-card" id="filestash-status">
+                    <div class="card-body text-center">
+                        <i class="bi bi-files display-4 text-info"></i>
+                        <h5 class="card-title">Filestash Client</h5>
+                        <span class="badge bg-secondary" id="filestash-badge">Sprawdzanie...</span>
+                        <p class="card-text small mt-2">Port: 8082</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card service-card" id="camel-status">
+                    <div class="card-body text-center">
+                        <i class="bi bi-arrow-left-right display-4 text-warning"></i>
+                        <h5 class="card-title">Apache Camel</h5>
+                        <span class="badge bg-secondary" id="camel-badge">Sprawdzanie...</span>
+                        <p class="card-text small mt-2">Integration</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card service-card" id="medavault-status">
+                    <div class="card-body text-center">
+                        <i class="bi bi-database display-4 text-success"></i>
+                        <h5 class="card-title">MedaVault API</h5>
+                        <span class="badge bg-secondary" id="medavault-badge">Sprawdzanie...</span>
+                        <p class="card-text small mt-2">Port: 8083</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions Row -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-upload"></i> Quick Upload via WebDAV</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>Upload plików przez WebDAV:</p>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <a href="http://localhost:8081/webdav/" target="_blank" class="btn btn-primary btn-sm">
+                                    <i class="bi bi-folder-plus"></i>
+                                    WebDAV Direct
+                                </a>
+                            </div>
+                            <div class="col-md-6">
+                                <a href="http://localhost:8082" target="_blank" class="btn btn-info btn-sm">
+                                    <i class="bi bi-files"></i>
+                                    Filestash Client
+                                </a>
+                            </div>
+                        </div>
+                        <hr>
+                        <small class="text-muted">
+                            <strong>WebDAV URL:</strong> http://localhost:8081/webdav/<br>
+                            <strong>Login:</strong> webdav / medavault123
+                        </small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-graph-up"></i> System Statistics</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <div class="stat-box">
+                                    <div class="stat-number" id="total-files">-</div>
+                                    <div class="stat-label">Pliki</div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="stat-box">
+                                    <div class="stat-number" id="total-size">-</div>
+                                    <div class="stat-label">Rozmiar</div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="stat-box">
+                                    <div class="stat-number" id="processed-today">-</div>
+                                    <div class="stat-label">Dzisiaj</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Media Row -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5><i class="bi bi-image"></i> Ostatnio Przetworzone Media</h5>
+                        <button class="btn btn-sm btn-outline-primary" onclick="loadRecentMedia()">
+                            <i class="bi bi-arrow-clockwise"></i>
+                            Odśwież
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div id="recent-media" class="row">
+                            <div class="col-12 text-center">
+                                <div class="spinner-border" role="status">
+                                    <span class="visually-hidden">Ładowanie...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Logs Row -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-journal-text"></i> Logi Systemu</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="system-logs" style="height: 300px; overflow-y: auto; background: #f8f9fa; padding: 15px; border-radius: 5px; font-family: monospace;">
+                            <div class="text-muted">Ładowanie logów...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/dashboard.js"></script>
+</body>
+</html>
