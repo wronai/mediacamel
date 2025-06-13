@@ -6,30 +6,146 @@ const path = require('path');
 const fs = require('fs');
 const sharp = require('sharp');
 const { v4: uuidv4 } = require('uuid');
+const { Sequelize, DataTypes } = require('sequelize');
+const helmet = require('helmet');
+const compression = require('compression');
 
+// Initialize Express app
 const app = express();
-const PORT = process.env.BACKEND_PORT || 9084;
-const HOST = process.env.BACKEND_HOST || '0.0.0.0';
+
+// Load environment variables with defaults
+const PORT = process.env.PORT || 9084;
+const HOST = process.env.HOST || '0.0.0.0';
 const API_BASE_PATH = process.env.API_BASE_PATH || '/api';
+const NODE_ENV = process.env.NODE_ENV || 'development';
+const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
+
+// Configure logging
+const logger = {
+  info: (...args) => console.log('[INFO]', ...args),
+  error: (...args) => console.error('[ERROR]', ...args),
+  debug: (...args) => LOG_LEVEL === 'debug' && console.debug('[DEBUG]', ...args)
+};
+
+// Initialize database connection
+let sequelize;
+try {
+  sequelize = new Sequelize({
+    dialect: 'postgres',
+    host: process.env.DB_HOST || 'medavault-db',
+    port: process.env.DB_PORT || 5432,
+    database: process.env.DB_NAME || 'medavault',
+    username: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || 'postgres',
+    logging: LOG_LEVEL === 'debug' ? logger.debug : false,
+    pool: {
+      max: 5,
+      min: 0,
+      acquire: 30000,
+      idle: 10000
+    }
+  });
+  
+  // Test the database connection
+  (async () => {
+    try {
+      await sequelize.authenticate();
+      logger.info('Database connection has been established successfully.');
+    } catch (error) {
+      logger.error('Unable to connect to the database:', error);
+      process.exit(1);
+    }
+  })();
+} catch (error) {
+  logger.error('Failed to initialize database connection:', error);
+  process.exit(1);
+}
 
 // Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(helmet());
+app.use(compression());
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Simple in-memory storage (replace with PostgreSQL in production)
-let mediaStore = [];
-let userStore = [
-    { id: 1, username: 'admin', role: 'administrator' },
-    { id: 2, username: 'manager', role: 'manager' },
-    { id: 3, username: 'client', role: 'external_client' }
-];
+// Logging middleware
+app.use((req, res, next) => {
+  logger.debug(`${req.method} ${req.originalUrl}`);
+  next();
+});
+
+// Define database models
+const User = sequelize.define('User', {
+  username: { type: DataTypes.STRING, allowNull: false, unique: true },
+  password: { type: DataTypes.STRING, allowNull: false },
+  role: { 
+    type: DataTypes.ENUM('administrator', 'manager', 'external_client'),
+    defaultValue: 'external_client'
+  },
+  email: { type: DataTypes.STRING, allowNull: true, validate: { isEmail: true } },
+  isActive: { type: DataTypes.BOOLEAN, defaultValue: true }
+});
+
+const Media = sequelize.define('Media', {
+  id: { type: DataTypes.UUID, primaryKey: true, defaultValue: DataTypes.UUIDV4 },
+  originalName: { type: DataTypes.STRING, allowNull: false },
+  fileName: { type: DataTypes.STRING, allowNull: false },
+  fileType: { type: DataTypes.STRING, allowNull: false },
+  fileSize: { type: DataTypes.INTEGER, allowNull: false },
+  filePath: { type: DataTypes.STRING, allowNull: false },
+  thumbnailPath: { type: DataTypes.STRING },
+  metadata: { type: DataTypes.JSONB, defaultValue: {}},
+  description: { type: DataTypes.TEXT },
+  tags: { type: DataTypes.ARRAY(DataTypes.STRING), defaultValue: [] },
+  isPublic: { type: DataTypes.BOOLEAN, defaultValue: false },
+  uploadedBy: { type: DataTypes.INTEGER, references: { model: 'Users', key: 'id' } }
+});
+
+// Initialize database tables
+const initDatabase = async () => {
+  try {
+    await sequelize.sync({ alter: true });
+    logger.info('Database synchronized');
+    
+    // Create default admin user if not exists
+    const adminUser = await User.findOne({ where: { username: 'admin' } });
+    if (!adminUser) {
+      const bcrypt = require('bcryptjs');
+      const hashedPassword = await bcrypt.hash('admin123', 10);
+      await User.create({
+        username: 'admin',
+        password: hashedPassword,
+        role: 'administrator',
+        email: 'admin@example.com',
+        isActive: true
+      });
+      logger.info('Default admin user created');
+    }
+  } catch (error) {
+    logger.error('Failed to initialize database:', error);
+    process.exit(1);
+  }
+};
+
+// Call the initialization function
+initDatabase();
 
 // Ensure directories exist
 const ensureDir = (dir) => {
+  try {
     if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
+      fs.mkdirSync(dir, { recursive: true, mode: 0o755 });
+      logger.debug(`Created directory: ${dir}`);
     }
+  } catch (error) {
+    logger.error(`Failed to create directory ${dir}:`, error);
+    throw error;
+  }
 };
 
 ensureDir('./processed/images');

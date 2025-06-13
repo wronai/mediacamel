@@ -106,17 +106,22 @@ services:
     container_name: medavault-db
     env_file: .env
     environment:
-      POSTGRES_DB=${POSTGRES_DB}
-      POSTGRES_USER=${POSTGRES_USER}
-      POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: ${TZ:-UTC}
+      PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - medavault-data:/var/lib/postgresql/data
       - ./config/init-db.sql:/docker-entrypoint-initdb.d/init.sql
-    ports:
-      - "${DB_PORT}:5432"
     networks:
       - medavault-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   # MedaVault API
   medavault-backend:
@@ -133,6 +138,12 @@ services:
       - ./storage:/app/storage
       - ./processed:/app/processed
       - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "node", "healthcheck.js"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - PORT=${BACKEND_PORT}
@@ -140,11 +151,12 @@ services:
       - BACKEND_PORT=${BACKEND_PORT}
       - API_BASE_PATH=${API_BASE_PATH:-/api}
       - LOG_LEVEL=${LOG_LEVEL:-info}
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT}
+      - DB_HOST=medavault-db
+      - DB_PORT=5432
       - DB_NAME=${POSTGRES_DB}
       - DB_USER=${POSTGRES_USER}
       - DB_PASSWORD=${POSTGRES_PASSWORD}
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@medavault-db:5432/${POSTGRES_DB}
       - JWT_SECRET=${JWT_SECRET:-your_jwt_secret}
       - WEBDAV_URL=http://${WEBDAV_HOST:-webdav-server}:${WEBDAV_PORT_HTTP}${WEBDAV_PATH:-/webdav}
       - WEBDAV_USER=${WEBDAV_USER}
@@ -152,6 +164,7 @@ services:
       - STORAGE_PATH=${STORAGE_PATH:-/app/storage}
       - PROCESSED_PATH=${PROCESSED_PATH:-/app/processed}
       - LOG_PATH=${LOG_PATH:-/app/logs}
+      - TZ=${TZ:-UTC}
     depends_on:
       - medavault-db
     networks:
