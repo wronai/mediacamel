@@ -117,6 +117,9 @@ http://localhost:8081/webdav/
 5. **Storage:** Plik trafia do MedaVault
 6. **Cleanup:** Opcjonalne usunięcie z WebDAV
 
+![img.png](img.png)
+
+
 ## 📁 Struktura Projektu
 
 ```
