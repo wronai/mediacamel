@@ -277,9 +277,7 @@ By default, files are stored in the `storage` directory. To change this:
 Logs are stored in the `logs` directory by default. You can configure log rotation and levels in the respective service configurations.
 
 ### Camel Processing Rules
-
 Edit `config/application.properties` to configure processing rules:
-
 ```properties
 # WebDAV connection
 webdav.url=http://webdav-server
@@ -291,7 +289,7 @@ camel.poll.delay=5000
 camel.cleanup.processed=true
 
 # MedaVault API
-medavault.api.url=http://medavault-backend:3000/api
+medavault.api.url=http://medavault-backend:3003/api
 ```
 
 ## 🛡️ Security
@@ -565,6 +563,7 @@ tar -xzvf medavault_storage_backup.tar.gz
            proxy_cache_bypass $http_upgrade;
        }
 
+
        location /api {
            proxy_pass http://localhost:8083;
            proxy_set_header Host $host;
@@ -663,7 +662,7 @@ We welcome contributions! Please read our [Contributing Guide](CONTRIBUTING.md) 
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache License - see the [LICENSE](LICENSE) file for details.
 
 ## 📧 Contact
 

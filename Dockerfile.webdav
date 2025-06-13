@@ -1,0 +1,30 @@
+FROM nginx:alpine
+
+# Install required packages
+RUN apk add --no-cache \
+    apache2-utils \
+    nginx-mod-http-dav-ext \
+    nginx-mod-http-auth-pam \
+    nginx-mod-http-echo \
+    nginx-mod-http-subs-filter
+
+# Copy configuration
+COPY config/nginx/nginx.conf /etc/nginx/nginx.conf
+COPY config/nginx/conf.d/ /etc/nginx/conf.d/
+
+# Create webdav directory and set permissions
+RUN mkdir -p /webdav && \
+    chown -R nginx:nginx /webdav && \
+    chmod -R 755 /webdav
+
+# Copy entrypoint script
+COPY config/nginx/docker-entrypoint.sh /docker-entrypoint.sh
+
+# Make entrypoint script executable
+RUN chmod +x /docker-entrypoint.sh
+
+# Expose ports
+EXPOSE 80 443
+
+# Set entrypoint
+ENTRYPOINT ["/docker-entrypoint.sh"]

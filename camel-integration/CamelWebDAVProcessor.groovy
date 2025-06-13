@@ -40,7 +40,7 @@ class WebDAVCamelProcessor extends RouteBuilder {
         props.setProperty("webdav.url", "http://webdav-server/webdav")
         props.setProperty("webdav.username", "webdav")
         props.setProperty("webdav.password", "medavault123")
-        props.setProperty("medavault.api.url", "http://medavault-backend:3000/api")
+        props.setProperty("medavault.api.url", "http://medavault-backend:3003/api")
         props.setProperty("poll.interval", "10000")
         props.setProperty("processing.enabled", "true")
     }
@@ -283,7 +283,7 @@ class WebDAVCamelProcessor extends RouteBuilder {
 // Main execution
 println "🚀 Starting WebDAV-Camel-MedaVault Integration..."
 println "🌐 WebDAV Server: ${System.getenv('WEBDAV_URL') ?: 'http://webdav-server/webdav'}"
-println "🎯 MedaVault API: ${System.getenv('MEDAVAULT_API') ?: 'http://medavault-backend:3000/api'}"
+println "🎯 MedaVault API: ${System.getenv('MEDAVAULT_API') ?: 'http://medavault-backend:3003/api'}"
 
 CamelContext context = new DefaultCamelContext()
 context.addRoutes(new WebDAVCamelProcessor())

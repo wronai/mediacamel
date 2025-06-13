@@ -1,0 +1,613 @@
+{% extends "base.html" %}
+
+{% set user_role = "external_client" %}
+
+{% block title %}Klient - MedaVault{% endblock %}
+
+{% block navigation %}
+{{ super() }}
+<li class="nav-item">
+    <a class="nav-link active" href="/client/dashboard">
+        <i class="fas fa-tachometer-alt me-2"></i>
+        Dashboard
+    </a>
+</li>
+<li class="nav-item">
+    <a class="nav-link" href="/client/submit">
+        <i class="fas fa-cloud-upload-alt me-2"></i>
+        Prześlij Media
+    </a>
+</li>
+<li class="nav-item">
+    <a class="nav-link" href="/client/gallery">
+        <i class="fas fa-images me-2"></i>
+        Moja Galeria
+    </a>
+</li>
+<li class="nav-item">
+    <a class="nav-link" href="/client/orders">
+        <i class="fas fa-shopping-cart me-2"></i>
+        Zamówienia
+    </a>
+</li>
+<li class="nav-item">
+    <a class="nav-link" href="/client/downloads">
+        <i class="fas fa-download me-2"></i>
+        Pobrane
+    </a>
+</li>
+<li class="nav-item">
+    <a class="nav-link" href="/client/support">
+        <i class="fas fa-life-ring me-2"></i>
+        Wsparcie
+    </a>
+</li>
+{% endblock %}
+
+{% block page_title %}Portal Klienta{% endblock %}
+
+{% block header_actions %}
+{{ super() }}
+<div class="btn-group">
+    <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#submitModal">
+        <i class="fas fa-plus"></i>
+        Nowe Zlecenie
+    </button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="contactSupport()">
+        <i class="fas fa-headset"></i>
+        Kontakt
+    </button>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Client Overview -->
+<div class="row mb-4">
+    <div class="col-xl-3 col-md-6">
+        <div class="card role-external_client mb-4">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="small text-muted">Przesłane Media</div>
+                        <div class="h3 mb-0">{{ stats.submitted_media | default(0) }}</div>
+                    </div>
+                    <div class="fas fa-cloud-upload-alt fa-2x text-success"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="small text-muted">W Realizacji</div>
+                        <div class="h3 mb-0">{{ stats.in_progress | default(0) }}</div>
+                    </div>
+                    <div class="fas fa-clock fa-2x text-warning"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="small text-muted">Gotowe</div>
+                        <div class="h3 mb-0">{{ stats.completed | default(0) }}</div>
+                    </div>
+                    <div class="fas fa-check-circle fa-2x text-primary"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="small text-muted">Pobrane</div>
+                        <div class="h3 mb-0">{{ stats.downloaded | default(0) }}</div>
+                    </div>
+                    <div class="fas fa-download fa-2x text-info"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Section -->
+<div class="row mb-4">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-cloud-upload-alt me-2"></i>
+                    Prześlij Media do Przetworzenia
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="upload-zone" id="clientUploadZone">
+                    <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
+                    <h5>Przeciągnij pliki tutaj</h5>
+                    <p class="text-muted">Obsługujemy zdjęcia RAW, JPEG, wideo 4K i inne formaty</p>
+                    <input type="file" id="clientFileInput" multiple accept="image/*,video/*,.raw,.cr2,.nef,.arw" style="display: none;">
+
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Maksymalny rozmiar: 2GB na plik
+                            </small>
+                        </div>
+                        <div class="col-md-6">
+                            <small class="text-muted">
+                                <i class="fas fa-shield-alt me-1"></i>
+                                Bezpieczne szyfrowanie SSL
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Upload Options -->
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <label for="projectType" class="form-label">Typ projektu</label>
+                        <select class="form-select" id="projectType">
+                            <option value="photo_editing">Edycja zdjęć</option>
+                            <option value="video_editing">Montaż wideo</option>
+                            <option value="color_correction">Korekcja kolorów</option>
+                            <option value="retouching">Retusz</option>
+                            <option value="other">Inne</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="priority" class="form-label">Priorytet</label>
+                        <select class="form-select" id="priority">
+                            <option value="standard">Standardowy (5-7 dni)</option>
+                            <option value="express">Express (2-3 dni) +50%</option>
+                            <option value="urgent">Pilny (24h) +100%</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <label for="projectDescription" class="form-label">Opis projektu / Specjalne wymagania</label>
+                    <textarea class="form-control" id="projectDescription" rows="3" placeholder="Opisz swoje wymagania..."></textarea>
+                </div>
+
+                <div id="client-upload-queue" class="mt-3"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Informacje
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-clock me-2"></i>Czas realizacji</h6>
+                    <ul class="mb-0 small">
+                        <li>Standardowy: 5-7 dni roboczych</li>
+                        <li>Express: 2-3 dni robocze</li>
+                        <li>Pilny: do 24 godzin</li>
+                    </ul>
+                </div>
+
+                <div class="alert alert-success">
+                    <h6><i class="fas fa-file-alt me-2"></i>Obsługiwane formaty</h6>
+                    <ul class="mb-0 small">
+                        <li>Zdjęcia: RAW, JPEG, PNG, TIFF</li>
+                        <li>Wideo: MP4, MOV, AVI, 4K</li>
+                        <li>Dokumenty: PDF, PSD, AI</li>
+                    </ul>
+                </div>
+
+                <div class="alert alert-warning">
+                    <h6><i class="fas fa-shield-alt me-2"></i>Bezpieczeństwo</h6>
+                    <p class="mb-0 small">
+                        Wszystkie pliki są szyfrowane i automatycznie usuwane po 30 dniach od zakończenia projektu.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Orders -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            <i class="fas fa-shopping-cart me-2"></i>
+            Ostatnie Zamówienia
+        </h5>
+        <a href="/client/orders" class="btn btn-sm btn-outline-primary">Zobacz wszystkie</a>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Projekt</th>
+                        <th>Status</th>
+                        <th>Data</th>
+                        <th>Priorytet</th>
+                        <th>Akcje</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in recent_orders | default([
+                        {'id': 'ORD001', 'project': 'Sesja ślubna - edycja', 'status': 'completed', 'date': '2024-01-10', 'priority': 'standard'},
+                        {'id': 'ORD002', 'project': 'Video corporate', 'status': 'in_progress', 'date': '2024-01-12', 'priority': 'express'},
+                        {'id': 'ORD003', 'project': 'Retusz produktów', 'status': 'pending', 'date': '2024-01-15', 'priority': 'urgent'}
+                    ]) %}
+                    <tr>
+                        <td><strong>{{ order.id }}</strong></td>
+                        <td>{{ order.project }}</td>
+                        <td>
+                            <span class="badge bg-{{ 'success' if order.status == 'completed' else 'warning' if order.status == 'in_progress' else 'secondary' }}">
+                                {% if order.status == 'completed' %}Gotowe
+                                {% elif order.status == 'in_progress' %}W realizacji
+                                {% else %}Oczekuje{% endif %}
+                            </span>
+                        </td>
+                        <td>{{ order.date }}</td>
+                        <td>
+                            <span class="badge bg-{{ 'danger' if order.priority == 'urgent' else 'warning' if order.priority == 'express' else 'info' }}">
+                                {{ order.priority | title }}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary" onclick="viewOrder('{{ order.id }}')">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                {% if order.status == 'completed' %}
+                                <button class="btn btn-outline-success" onclick="downloadOrder('{{ order.id }}')">
+                                    <i class="fas fa-download"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Available Downloads -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="fas fa-download me-2"></i>
+            Dostępne do Pobrania
+        </h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            {% for download in available_downloads | default([
+                {'id': 'DL001', 'name': 'Edytowane zdjęcia ślubne', 'size': '250 MB', 'expires': '15 dni', 'type': 'photos'},
+                {'id': 'DL002', 'name': 'Video montaż - final', 'size': '1.2 GB', 'expires': '28 dni', 'type': 'video'},
+                {'id': 'DL003', 'name': 'Retusz produktów - JPEG', 'size': '85 MB', 'expires': '10 dni', 'type': 'photos'}
+            ]) %}
+            <div class="col-md-4 mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h6 class="card-title">{{ download.name }}</h6>
+                            <span class="badge bg-primary">{{ download.type }}</span>
+                        </div>
+                        <p class="card-text small text-muted">
+                            <i class="fas fa-hdd me-1"></i>{{ download.size }}<br>
+                            <i class="fas fa-clock me-1"></i>Wygasa za {{ download.expires }}
+                        </p>
+                        <div class="d-grid">
+                            <button class="btn btn-success btn-sm" onclick="downloadFile('{{ download.id }}')">
+                                <i class="fas fa-download me-2"></i>Pobierz
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Submit New Order Modal -->
+<div class="modal fade" id="submitModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Nowe Zlecenie</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="newOrderForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="orderType" class="form-label">Typ zlecenia</label>
+                                <select class="form-select" id="orderType" required>
+                                    <option value="">Wybierz typ</option>
+                                    <option value="photo_editing">Edycja zdjęć</option>
+                                    <option value="video_editing">Montaż wideo</option>
+                                    <option value="color_correction">Korekcja kolorów</option>
+                                    <option value="retouching">Retusz profesjonalny</option>
+                                    <option value="restoration">Restauracja zdjęć</option>
+                                    <option value="other">Inne - opisz w komentarzu</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="orderPriority" class="form-label">Priorytet</label>
+                                <select class="form-select" id="orderPriority" required>
+                                    <option value="standard">Standardowy (5-7 dni)</option>
+                                    <option value="express">Express (2-3 dni) +50%</option>
+                                    <option value="urgent">Pilny (24h) +100%</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="orderTitle" class="form-label">Nazwa projektu</label>
+                        <input type="text" class="form-control" id="orderTitle" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="orderDescription" class="form-label">Opis wymagań</label>
+                        <textarea class="form-control" id="orderDescription" rows="4" required></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="modalFileInput" class="form-label">Pliki źródłowe</label>
+                        <input type="file" class="form-control" id="modalFileInput" multiple accept="image/*,video/*,.raw,.cr2,.nef,.arw">
+                        <div class="form-text">Możesz dodać pliki teraz lub później</div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="deadline" class="form-label">Preferowany termin (opcjonalny)</label>
+                                <input type="date" class="form-control" id="deadline">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="budget" class="form-label">Budżet (PLN)</label>
+                                <select class="form-select" id="budget">
+                                    <option value="">Nie określono</option>
+                                    <option value="100-500">100-500 PLN</option>
+                                    <option value="500-1000">500-1000 PLN</option>
+                                    <option value="1000-2000">1000-2000 PLN</option>
+                                    <option value="2000+">Powyżej 2000 PLN</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+                <button type="button" class="btn btn-primary" onclick="submitNewOrder()">Złóż zlecenie</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let clientSelectedFiles = [];
+
+$(document).ready(function() {
+    // Client upload zone
+    $('#clientUploadZone').on('click', function() {
+        $('#clientFileInput').click();
+    });
+
+    $('#clientUploadZone').on('dragover', function(e) {
+        e.preventDefault();
+        $(this).addClass('dragover');
+    });
+
+    $('#clientUploadZone').on('dragleave', function(e) {
+        e.preventDefault();
+        $(this).removeClass('dragover');
+    });
+
+    $('#clientUploadZone').on('drop', function(e) {
+        e.preventDefault();
+        $(this).removeClass('dragover');
+        const files = e.originalEvent.dataTransfer.files;
+        handleClientFiles(files);
+    });
+
+    $('#clientFileInput').on('change', function() {
+        handleClientFiles(this.files);
+    });
+
+    // Auto-refresh order status every 30 seconds
+    setInterval(refreshOrderStatus, 30000);
+});
+
+function handleClientFiles(files) {
+    clientSelectedFiles = Array.from(files);
+    let queueHtml = '<div class="alert alert-info"><h6>Wybrane pliki do przesłania:</h6>';
+
+    let totalSize = 0;
+    clientSelectedFiles.forEach((file, index) => {
+        totalSize += file.size;
+        queueHtml += `
+            <div class="d-flex justify-content-between align-items-center py-1">
+                <div>
+                    <i class="fas fa-${getFileIcon(file.type)} me-2"></i>
+                    ${file.name}
+                    <small class="text-muted">(${(file.size / 1024 / 1024).toFixed(2)} MB)</small>
+                </div>
+                <button class="btn btn-sm btn-outline-danger" onclick="removeClientFile(${index})">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+    });
+
+    queueHtml += `
+        <hr>
+        <div class="d-flex justify-content-between align-items-center">
+            <strong>Łączny rozmiar: ${(totalSize / 1024 / 1024).toFixed(2)} MB</strong>
+            <button class="btn btn-primary" onclick="uploadClientFiles()">
+                <i class="fas fa-cloud-upload-alt me-2"></i>
+                Prześlij i Utwórz Zlecenie
+            </button>
+        </div>
+    </div>`;
+
+    $('#client-upload-queue').html(queueHtml);
+}
+
+function removeClientFile(index) {
+    clientSelectedFiles.splice(index, 1);
+    if (clientSelectedFiles.length > 0) {
+        handleClientFiles(clientSelectedFiles);
+    } else {
+        $('#client-upload-queue').empty();
+    }
+}
+
+function getFileIcon(fileType) {
+    if (fileType.startsWith('image')) return 'image';
+    if (fileType.startsWith('video')) return 'video';
+    if (fileType.includes('pdf')) return 'file-pdf';
+    return 'file';
+}
+
+function uploadClientFiles() {
+    const projectType = $('#projectType').val();
+    const priority = $('#priority').val();
+    const description = $('#projectDescription').val();
+
+    if (!projectType || !priority) {
+        showAlert('Proszę wybrać typ projektu i priorytet', 'warning', 'exclamation-triangle');
+        return;
+    }
+
+    // Create order first
+    const orderData = {
+        type: projectType,
+        priority: priority,
+        description: description,
+        files_count: clientSelectedFiles.length,
+        total_size: clientSelectedFiles.reduce((sum, file) => sum + file.size, 0),
+        user: '{{ user_name }}',
+        action: 'create_order'
+    };
+
+    sendToCamel('client_order', orderData).done(function(response) {
+        // Upload files
+        clientSelectedFiles.forEach((file, index) => {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('order_id', response.order_id);
+            formData.append('project_type', projectType);
+            formData.append('priority', priority);
+
+            sendToCamel('client_upload', {
+                filename: file.name,
+                order_id: response.order_id,
+                project_type: projectType,
+                priority: priority,
+                user: '{{ user_name }}'
+            });
+        });
+
+        showAlert('Zlecenie utworzone pomyślnie! ID: ' + response.order_id, 'success', 'check-circle');
+        $('#client-upload-queue').empty();
+        clientSelectedFiles = [];
+
+        // Reset form
+        $('#projectType').val('');
+        $('#priority').val('');
+        $('#projectDescription').val('');
+    });
+}
+
+function submitNewOrder() {
+    const form = $('#newOrderForm')[0];
+    if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+    }
+
+    const orderData = {
+        type: $('#orderType').val(),
+        priority: $('#orderPriority').val(),
+        title: $('#orderTitle').val(),
+        description: $('#orderDescription').val(),
+        deadline: $('#deadline').val(),
+        budget: $('#budget').val(),
+        user: '{{ user_name }}',
+        action: 'create_order'
+    };
+
+    sendToCamel('client_order', orderData).done(function(response) {
+        $('#submitModal').modal('hide');
+        showAlert('Zlecenie zostało złożone! ID: ' + response.order_id, 'success', 'check-circle');
+
+        // Reset form
+        form.reset();
+
+        // Refresh page after delay
+        setTimeout(() => location.reload(), 2000);
+    });
+}
+
+function viewOrder(orderId) {
+    // Implementation for viewing order details
+    showAlert('Szczegóły zamówienia ' + orderId, 'info', 'eye');
+}
+
+function downloadOrder(orderId) {
+    sendToCamel('download_order', {
+        order_id: orderId,
+        user: '{{ user_name }}',
+        action: 'download_completed_order'
+    }).done(function() {
+        showAlert('Pobieranie rozpoczęte', 'success', 'download');
+    });
+}
+
+function downloadFile(downloadId) {
+    sendToCamel('download_file', {
+        download_id: downloadId,
+        user: '{{ user_name }}',
+        action: 'download_file'
+    }).done(function() {
+        showAlert('Pobieranie rozpoczęte', 'success', 'download');
+    });
+}
+
+function contactSupport() {
+    // Implementation for contacting support
+    showAlert('Przekierowanie do wsparcia technicznego', 'info', 'headset');
+}
+
+function refreshOrderStatus() {
+    sendToCamel('refresh_status', {
+        user: '{{ user_name }}',
+        action: 'refresh_order_status'
+    });
+}
+</script>
+{% endblock %}
