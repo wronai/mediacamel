@@ -101,154 +101,290 @@ Password: medavault123
 ./scripts/test-webdav.sh
 ```
 
-## 📤 Sposoby Upload-u Plików
+## 📤 File Upload Methods
 
-### 1. **Przez Filestash (Najłatwiejszy)**
-1. Otwórz http://localhost:8082
-2. Wybierz "WebDAV" jako storage type
-3. Podaj dane logowania WebDAV
-4. Przeciągnij i upuść pliki
+### 1. **Using Filestash (Easiest)**
+1. Open http://localhost:8082
+2. Select "WebDAV" as storage type
+3. Enter WebDAV credentials:
+   - URL: `http://webdav-server`
+   - Username: `webdav`
+   - Password: `medavault123`
+4. Drag and drop files to upload
 
-### 2. **Bezpośrednio przez WebDAV**
+### 2. **Direct WebDAV Access**
+#### Using curl:
 ```bash
-# Przy użyciu curl
 curl -u webdav:medavault123 \
-     -T twoj-plik.jpg \
-     "http://localhost:8081/webdav/twoj-plik.jpg"
-
-# Przy użyciu rclone
-rclone copy lokalny-folder/ webdav-remote:
+     -T your-file.jpg \
+     "http://localhost:8081/your-file.jpg"
 ```
 
-### 3. **Mount jako dysk (Windows/macOS/Linux)**
+#### Using rclone:
+1. Configure rclone:
+   ```bash
+   rclone config create webdav webdav \
+     url=http://localhost:8081 \
+     vendor=other \
+     user=webdav \
+     pass=medavault123
+   ```
+2. Copy files:
+   ```bash
+   rclone copy local-folder/ webdav:
+   ```
+
+### 3. **Mount as Network Drive**
+#### Linux (davfs2):
 ```bash
-# Linux (davfs2)
-mount -t davfs http://localhost:8081/webdav /mnt/webdav
+# Install davfs2
+sudo apt install davfs2
 
-# Windows - Map Network Drive
-\\localhost@8081\webdav
+# Add user to davfs2 group
+sudo usermod -aG davfs2 $(whoami)
 
-# macOS - Finder -> Go -> Connect to Server
-http://localhost:8081/webdav/
+# Mount WebDAV
+sudo mount -t davfs http://localhost:8081 /mnt/webdav
 ```
 
-## 🔄 Jak działa przetwarzanie
+#### Windows:
+1. Open File Explorer
+2. Right-click "This PC" and select "Map network drive"
+3. Enter: `\\localhost@8081\`
+4. Enter credentials when prompted
 
-1. **Upload:** Użytkownik przesyła plik przez WebDAV
-2. **Detection:** Camel polling wykrywa nowy plik
-3. **Download:** Camel pobiera plik z WebDAV
-4. **Processing:**
-   - Obrazy: generowanie miniatur
-   - Wideo: ekstrakcja metadanych
-   - Dokumenty: indeksowanie treści
-5. **Storage:** Plik trafia do MedaVault
-6. **Cleanup:** Opcjonalne usunięcie z WebDAV
+#### macOS:
+1. In Finder, press Cmd+K
+2. Enter: `http://localhost:8081`
+3. Use "Connect As" with username/password
 
-![img.png](img.png)
+## 🔄 Processing Pipeline
 
+1. **Upload**: User uploads file via WebDAV
+2. **Detection**: Camel integration detects new file
+3. **Download**: File is downloaded for processing
+4. **Processing**:
+   - Images: Generate thumbnails, extract metadata
+   - Videos: Extract metadata, generate previews
+   - Documents: Index content, extract text
+5. **Storage**: File is stored in MedaVault
+6. **Cleanup**: Optional removal from WebDAV after processing
 
-## 📁 Struktura Projektu
+## 📁 Project Structure
 
 ```
-webdav-camel-medavault-system/
-├── docker-compose.yml           # Główna konfiguracja
-├── config/                      # Konfiguracje
-│   ├── webdav-nginx.conf       # WebDAV server config
-│   ├── application.properties   # Camel properties
-│   └── init-db.sql             # Database schema
-├── camel-integration/           # Apache Camel
-│   └── CamelWebDAVProcessor.groovy
-├── medavault-backend/           # Node.js API
-│   ├── server.js
+mediacamel/
+├── docker-compose.yml          # Main Docker Compose configuration
+├── .env                       # Environment variables
+├── config/                    # Configuration files
+│   ├── nginx/                # Nginx configurations
+│   ├── filestash/            # Filestash configuration
+│   └── medavault/            # MedaVault application configs
+├── camel-integration/         # Apache Camel integration
+│   ├── Dockerfile
+│   ├── CamelWebDAVProcessor.groovy
+│   └── lib/                   # Custom Java/Groovy libraries
+├── medavault-backend/         # Node.js API
+│   ├── src/
+│   ├── package.json
+│   └── Dockerfile
+├── web-dashboard/             # React/Vue dashboard
+│   ├── public/
+│   ├── src/
 │   └── package.json
-├── web-dashboard/               # Frontend dashboard
-│   ├── index.html
-│   ├── css/dashboard.css
-│   └── js/dashboard.js
-├── storage/                     # File storage
-│   ├── incoming/               # WebDAV files
-│   ├── processed/              # Processed media
-│   └── failed/                 # Failed processing
-├── scripts/                     # Helper scripts
-│   ├── start-system.sh
-│   ├── stop-system.sh
-│   ├── test-upload.sh
-│   └── monitor-logs.sh
-└── logs/                       # System logs
+├── storage/                   # Persistent storage
+│   ├── incoming/             # New uploads
+│   ├── processed/            # Successfully processed files
+│   └── failed/               # Failed processing attempts
+├── scripts/                   # Utility scripts
+│   ├── setup.sh              # Initial setup
+│   ├── test-webdav.sh        # WebDAV connection test
+│   └── backup.sh             # Backup utilities
+└── logs/                     # Application logs
 ```
 
-## 🛠️ Zarządzanie Systemem
+## 🛠️ System Management
 
-### Monitoring
+### Monitoring Services
 ```bash
-# Sprawdź status usług
-./scripts/monitor-logs.sh
-
-# Dashboard systemowy
-open http://localhost:8080
-
-# Logi Docker
+# View logs for all services
 docker-compose logs -f
+
+# View logs for specific service
+docker-compose logs -f service_name
+
+# Check service status
+docker-compose ps
 ```
 
-### Testing
+### Common Tasks
 ```bash
-# Test upload functionality
-./scripts/test-upload.sh
+# Restart a specific service
+docker-compose restart service_name
 
-# Manual file upload
-echo "test content" > test.txt
-curl -u webdav:medavault123 \
-     -T test.txt \
-     "http://localhost:8081/webdav/test.txt"
+# Rebuild and restart a service
+docker-compose up -d --build service_name
+
+# Access container shell
+docker-compose exec service_name sh
 ```
 
 ### Maintenance
 ```bash
-# Restart specific service
-docker-compose restart camel-integration
+# Backup database
+docker-compose exec medavault-db pg_dump -U postgres medavault > backup.sql
 
-# Clean up storage
-rm -rf storage/processed/*
-rm -rf storage/failed/*
+# Clean up old files
+# Clean processed files older than 7 days
+find storage/processed -type f -mtime +7 -delete
 
-# Stop system
-./scripts/stop-system.sh
+# Stop all services
+docker-compose down
 ```
 
-## ⚙️ Konfiguracja
+## ⚙️ Configuration
+
+### Environment Variables
+Edit the `.env` file to configure:
+- Database credentials
+- WebDAV authentication
+- Storage paths
+- Logging levels
+- Service ports
 
 ### WebDAV Authentication
-Edytuj `config/.htpasswd` aby zmienić dane logowania:
-```bash
-# Generate new password hash
-htpasswd -n username
-```
+To change WebDAV credentials:
+1. Edit the `.env` file:
+   ```
+   WEBDAV_USER=newuser
+   WEBDAV_PASSWORD=newpassword
+   ```
+2. Rebuild the WebDAV server:
+   ```bash
+   docker-compose up -d --build webdav-server
+   ```
+
+### Storage Configuration
+By default, files are stored in the `storage` directory. To change this:
+1. Update `.env`:
+   ```
+   STORAGE_PATH=/path/to/your/storage
+   ```
+2. Ensure the directory exists and has proper permissions
+3. Restart the services
+
+### Logging
+Logs are stored in the `logs` directory by default. You can configure log rotation and levels in the respective service configurations.
 
 ### Camel Processing Rules
-Edytuj `config/application.properties`:
+
+Edit `config/application.properties` to configure processing rules:
+
 ```properties
-# Poll interval (milliseconds)
-poll.interval=10000
+# WebDAV connection
+webdav.url=http://webdav-server
+webdav.username=${WEBDAV_USER}
+webdav.password=${WEBDAV_PASSWORD}
 
-# Auto cleanup WebDAV files
-auto.cleanup=true
+# Processing rules
+camel.poll.delay=5000
+camel.cleanup.processed=true
 
-# Supported file types
-supported.image.types=jpg,jpeg,png,gif,bmp,tiff,webp,svg
-supported.video.types=mp4,avi,mov,wmv,flv,mkv,webm,m4v
+# MedaVault API
+medavault.api.url=http://medavault-backend:3000/api
 ```
 
-### MedaVault Storage
-Konfiguracja lokalizacji storage w `medavault-backend/server.js`:
-```javascript
-const STORAGE_CONFIG = {
-    images: './processed/images',
-    videos: './processed/videos',
-    documents: './processed/documents',
-    thumbnails: './processed/thumbnails'
-};
+## 🛡️ Security
+
+### 1. **Default Credentials**
+Change default credentials in the `.env` file before deploying to production.
+
+### 2. HTTPS in Production
+Always use HTTPS with a valid SSL certificate in production environments.
+
+### 3. Firewall Rules
+Restrict access to ports:
+- 8085 (Dashboard) - Admin access only
+- 8081, 8082 (WebDAV/Filestash) - Trusted networks only
+- 8083 (API) - Internal access recommended
+
+### 4. Regular Updates
+Keep all components updated:
+```bash
+docker-compose pull
+docker-compose up -d
 ```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+### Development Setup
+
+1. Install development dependencies:
+   ```bash
+   # Install Node.js dependencies
+   cd medavault-backend
+   npm install
+   
+   # Install frontend dependencies
+   cd ../web-dashboard
+   npm install
+   ```
+
+2. Start development servers:
+   ```bash
+   # Backend with hot-reload
+   cd medavault-backend
+   npm run dev
+   
+   # Frontend with hot-reload
+   cd ../web-dashboard
+   npm run serve
+   ```
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+#### WebDAV Connection Issues
+- Verify the WebDAV server is running: `docker-compose ps | grep webdav`
+- Check logs: `docker-compose logs webdav-server`
+- Test connection: `./scripts/test-webdav.sh`
+
+#### Database Connection Issues
+- Check if PostgreSQL is running: `docker-compose ps | grep db`
+- View database logs: `docker-compose logs medavault-db`
+- Test database connection:
+  ```bash
+  docker-compose exec medavault-db psql -U postgres -c "\l"
+  ```
+
+#### File Permission Issues
+If you encounter permission errors:
+```bash
+# Set correct permissions on storage directories
+sudo chown -R 1000:1000 storage/
+sudo chmod -R 775 storage/
+```
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 📧 Contact
+
+For issues and feature requests, please open an issue in the repository.
+
+---
+
+<div align="center">
+  Made with ❤️ by the MedaVault Team
+</div>
 
 ## 🔧 API Endpoints
 
