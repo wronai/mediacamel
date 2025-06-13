@@ -27,5 +27,5 @@ for file in test-files/*; do
 done
 
 echo ""
-echo "🔍 Check the dashboard at http://localhost:8080 to see processed files"
+echo "🔍 Check the dashboard at http://localhost:8081 to see processed files"
 echo "📁 Or browse WebDAV at http://localhost:8081/webdav/"

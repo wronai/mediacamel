@@ -9,17 +9,21 @@ services:
     ports:
       - "${WEBDAV_PORT_HTTP}:80"
       - "${WEBDAV_PORT_HTTPS}:443"
+      - "${WEBDAV_STATUS_PORT}:${WEBDAV_STATUS_PORT}"  # Status endpoint port
     volumes:
       - webdav-data:/webdav
-      - ./config/nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./config/nginx/htpasswd:/etc/nginx/htpasswd
+      - ./config/nginx/conf.d/webdav.conf:/etc/nginx/conf.d/webdav.conf
+      - ./config/nginx/conf.d/status.conf:/etc/nginx/conf.d/status.conf
+      - ./config/nginx/conf.d/default.conf:/etc/nginx/conf.d/default.conf
     environment:
       - PUID=1000
       - PGID=1000
-      - TZ=UTC
-      - WEBDAV_USER=${WEBDAV_USER:-webdav}
-      - WEBDAV_PASSWORD=${WEBDAV_PASSWORD:-medavault123}
-    user: "root"
+      - WEBDAV_USERNAME=${WEBDAV_USER}
+      - WEBDAV_PASSWORD=${WEBDAV_PASSWORD}
+      - WEBDAV_HOST=${WEBDAV_HOST:-webdav-server}
+      - WEBDAV_PORT_HTTP
+      - WEBDAV_PORT_HTTPS
+      - WEBDAV_STATUS_PORT
     networks:
       - medavault-network
     restart: unless-stopped
@@ -36,7 +40,13 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
-      - APPLICATION_URL=http://localhost:${FILESTASH_PORT}
+      - FILESTASH_HOST=${FILESTASH_HOST:-filestash-client}
+      - FILESTASH_PORT
+      - APPLICATION_URL=http://${FILESTASH_HOST:-localhost}:${FILESTASH_PORT}
+      - WEBDAV_HOST=${WEBDAV_HOST:-webdav-server}
+      - WEBDAV_PORT_HTTP
+      - WEBDAV_USER
+      - WEBDAV_PASSWORD
     depends_on:
       - webdav-server
     networks:
@@ -56,6 +66,12 @@ services:
     environment:
       - NODE_ENV=${NODE_ENV}
       - LOG_LEVEL=${LOG_LEVEL}
+      - WEBDAV_HOST=${WEBDAV_HOST:-webdav-server}
+      - WEBDAV_PORT_HTTP
+      - WEBDAV_USER
+      - WEBDAV_PASSWORD
+      - BACKEND_HOST=${BACKEND_HOST:-medavault-backend}
+      - BACKEND_PORT
     working_dir: /app
     depends_on:
       - webdav-server
@@ -99,6 +115,9 @@ services:
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${DB_HOST}:${DB_PORT}/${POSTGRES_DB}
       - STORAGE_PATH=/app/processed
       - LOG_LEVEL=${LOG_LEVEL}
+      - BACKEND_HOST=${BACKEND_HOST:-medavault-backend}
+      - BACKEND_PORT
+      - API_BASE_PATH=${API_BASE_PATH:-/api}
     depends_on:
       - medavault-db
     networks:
@@ -111,10 +130,19 @@ services:
     container_name: web-dashboard
     env_file: .env
     ports:
-      - "${WEB_DASHBOARD_PORT}:80"
+      - "${DASHBOARD_PORT}:80"
     volumes:
       - ./web-dashboard:/usr/share/nginx/html:ro
       - ./config/dashboard-nginx.conf:/etc/nginx/nginx.conf:ro
+    environment:
+      - DASHBOARD_PORT
+      - DASHBOARD_HOST=${DASHBOARD_HOST:-localhost}
+      - BACKEND_HOST=${BACKEND_HOST:-medavault-backend}
+      - BACKEND_PORT
+      - WEBDAV_HOST=${WEBDAV_HOST:-webdav-server}
+      - WEBDAV_PORT_HTTP
+      - WEBDAV_STATUS_PORT
+      - FILESTASH_PORT
     networks:
       - medavault-network
     restart: unless-stopped

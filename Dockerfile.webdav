@@ -8,23 +8,25 @@ RUN apk add --no-cache \
     apache2-utils \
     nginx-mod-http-dav-ext
 
-# Copy configuration
+# Copy nginx configuration
 COPY config/nginx/nginx.conf /etc/nginx/nginx.conf
-COPY config/nginx/conf.d/ /etc/nginx/conf.d/
-
-# Create webdav directory and set permissions
-RUN mkdir -p /webdav && \
-    chown -R nginx:nginx /webdav && \
-    chmod -R 755 /webdav
+COPY config/nginx/conf.d/webdav.conf /etc/nginx/conf.d/
+COPY config/nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf
 
 # Copy entrypoint script
 COPY config/nginx/docker-entrypoint.sh /docker-entrypoint.sh
 
-# Make entrypoint script executable
-RUN chmod +x /docker-entrypoint.sh
+# Set permissions
+RUN chmod +x /docker-entrypoint.sh && \
+    mkdir -p /webdav && \
+    chown -R nginx:nginx /webdav && \
+    chmod 755 /webdav
 
 # Expose ports
 EXPOSE 80 443
 
 # Set entrypoint
 ENTRYPOINT ["/docker-entrypoint.sh"]
+
+# Start nginx in the foreground
+CMD ["nginx", "-g", "daemon off;"]

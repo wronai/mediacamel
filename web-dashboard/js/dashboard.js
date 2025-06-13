@@ -7,13 +7,27 @@ let systemStats = {
 
 let systemLogs = [];
 
+// Import configuration
+import { config } from './config.js';
+
+// Helper function to build service URLs
+const buildServiceUrl = (service, path = '') => {
+    const protocol = service.httpsPort ? 'https:' : 'http:';
+    const port = service.httpsPort || service.httpPort || service.port;
+    const baseUrl = `${protocol}//${service.host || 'localhost'}${port ? ':' + port : ''}`;
+    return path ? `${baseUrl}${path.startsWith('/') ? path : '/' + path}` : baseUrl;
+};
+
 // Service URLs
 const services = {
-    webdav: 'http://localhost:8081/status',
-    filestash: 'http://localhost:8082',
-    camel: 'http://localhost:8080/actuator/health', // if Spring Boot actuator is available
-    medavault: 'http://localhost:8083/health'
+    webdav: buildServiceUrl(config.webdav, '/status'),
+    filestash: buildServiceUrl(config.filestash),
+    camel: buildServiceUrl(config.webdav, '/actuator/health'), // if Spring Boot actuator is available
+    medavault: buildServiceUrl(config.medavault, '/health')
 };
+
+// Set page title with dashboard port
+document.title = `MediaCamel Dashboard (${buildServiceUrl(config.dashboard)})`;
 
 // Initialize dashboard
 document.addEventListener('DOMContentLoaded', function() {
@@ -41,19 +55,59 @@ document.addEventListener('DOMContentLoaded', function() {
 // Check service status
 async function checkServiceStatus(serviceName, url) {
     try {
-        const response = await fetch(url, {
-            method: 'GET',
-            mode: 'cors',
-            timeout: 5000
-        });
-
-        if (response.ok) {
-            updateServiceStatus(serviceName, 'online');
-            return true;
+        // Special handling for WebDAV service
+        if (serviceName === 'webdav') {
+            try {
+                // First try with CORS
+                const response = await fetch(url, {
+                    method: 'GET',
+                    mode: 'cors',
+                    credentials: 'omit',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    updateServiceStatus(serviceName, 'online');
+                    return true;
+                }
+            } catch (e) {
+                console.log('CORS request failed, trying with no-cors mode');
+                // If CORS fails, try with no-cors mode
+                try {
+                    const response = await fetch(url, {
+                        method: 'GET',
+                        mode: 'no-cors',
+                        credentials: 'omit'
+                    });
+                    // With no-cors, we can't read the response, but if we get here, the server is up
+                    updateServiceStatus(serviceName, 'online');
+                    return true;
+                } catch (noCorsError) {
+                    console.log(`${serviceName} no-cors check failed:`, noCorsError.message);
+                    updateServiceStatus(serviceName, 'offline');
+                    return false;
+                }
+            }
         } else {
-            updateServiceStatus(serviceName, 'offline');
-            return false;
+            // Standard check for other services
+            const response = await fetch(url, {
+                method: 'GET',
+                mode: 'cors',
+                credentials: 'omit'
+            });
+
+            if (response.ok) {
+                updateServiceStatus(serviceName, 'online');
+                return true;
+            }
         }
+        
+        // If we get here, the request was not successful
+        updateServiceStatus(serviceName, 'offline');
+        return false;
     } catch (error) {
         console.log(`${serviceName} check failed:`, error.message);
         updateServiceStatus(serviceName, 'offline');
