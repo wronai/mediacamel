@@ -1,4 +1,4 @@
-# MedaCamel - Modern Media Management System
+# MediaCamel - Modern Media Management System
 
 🌐 A complete, containerized media management system with WebDAV support, Apache Camel integration, and a modern web interface.
 

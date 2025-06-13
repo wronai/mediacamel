@@ -182,101 +182,218 @@ app.get(`${API_BASE_PATH}/media`, (req, res) => {
 
     res.json({
         success: true,
-        count: limitedMedia.length,
-        total: filteredMedia.length,
-        media: limitedMedia
-    });
 });
 
 // Upload/Process media from Camel
-app.post(`${API_BASE_PATH}/media`, (req, res) => {
-    try {
-        const {
-            filename,
-            fileType,
-            processedPath,
-            source,
-            timestamp,
-            size,
-            lastModified
-        } = req.body;
+app.post(`${API_BASE_PATH}/media`, upload.single('file'), async (req, res) => {
+  try {
+    const mediaId = uuidv4();
+    const mediaRecord = {
+      id: mediaId,
+      originalName: req.file.originalname,
+      fileName: req.file.filename,
+      fileType: req.file.mimetype.split('/')[0],
+      fileSize: req.file.size,
+      filePath: req.file.path,
+      thumbnailPath: null,
+      metadata: {
+        width: null,
+        height: null,
+        duration: null
+      },
+      description: req.body.description,
+      tags: req.body.tags,
+      isPublic: req.body.isPublic,
+      uploadedBy: req.user.id
+    };
 
-        const mediaId = uuidv4();
-        const mediaRecord = {
-            id: mediaId,
-            filename: filename,
-            originalName: filename,
-            fileType: fileType,
-            processedPath: processedPath,
-            source: source || 'webdav',
-            uploadedAt: timestamp || new Date().toISOString(),
-            size: parseInt(size) || 0,
-            lastModified: lastModified,
-            status: 'processed',
-            thumbnailPath: null,
-            metadata: {
-                width: null,
-                height: null,
-                duration: null
-            },
-            tags: [],
-            uploadedBy: 'webdav-system'
-        };
-
-        // Generate thumbnail for images
-        if (fileType === 'image' && processedPath) {
-            generateThumbnail(processedPath, mediaId)
-                .then(thumbnailPath => {
-                    mediaRecord.thumbnailPath = thumbnailPath;
-                    console.log(`📸 Thumbnail generated: ${thumbnailPath}`);
-                })
-                .catch(err => {
-                    console.error(`❌ Thumbnail generation failed: ${err.message}`);
-                });
-        }
-
-        mediaStore.push(mediaRecord);
-
-        console.log(`✅ Media record created: ${filename} (${fileType})`);
-
-        res.json({
-            success: true,
-            message: 'Media processed successfully',
-            mediaId: mediaId,
-            media: mediaRecord
-        });
-
-    } catch (error) {
-        console.error('❌ Error processing media:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error processing media',
-            error: error.message
-        });
+    // Generate thumbnail for images
+    if (req.file.mimetype.startsWith('image') && req.file.path) {
+      const thumbnailPath = await generateThumbnail(req.file.path, mediaId);
+      mediaRecord.thumbnailPath = thumbnailPath;
     }
-});
 
-// Get specific media
-app.get(`${API_BASE_PATH}/media/:id`, (req, res) => {
-    const media = mediaStore.find(m => m.id === req.params.id);
-
-    if (!media) {
-        return res.status(404).json({
-            success: false,
-            message: 'Media not found'
-        });
-    }
+    await Media.create(mediaRecord);
 
     res.json({
-        success: true,
-        media: media
+      success: true,
+      message: 'Media processed successfully',
+      mediaId: mediaId,
+      media: mediaRecord
     });
+  } catch (error) {
+    logger.error('Error processing media:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error processing media',
+      error: error.message
+    });
+  }
+});
+
+// Get all media with pagination and filtering
+app.get(`${API_BASE_PATH}/media`, async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = Math.min(parseInt(req.query.limit) || 50, 100); // Max 100 items per page
+    const offset = (page - 1) * limit;
+    
+    // Build where clause based on query parameters
+    const where = {};
+    
+    // Filter by file type
+    if (req.query.type) {
+      where.fileType = req.query.type;
+    }
+    
+    // Filter by tag
+    if (req.query.tag) {
+      where.tags = {
+        [Sequelize.Op.contains]: [req.query.tag]
+      };
+    }
+    
+    // Filter by date range
+    if (req.query.startDate || req.query.endDate) {
+      where.createdAt = {};
+      if (req.query.startDate) {
+        where.createdAt[Sequelize.Op.gte] = new Date(req.query.startDate);
+      }
+      if (req.query.endDate) {
+        where.createdAt[Sequelize.Op.lte] = new Date(req.query.endDate);
+      }
+    }
+    
+    // Get total count for pagination
+    const total = await Media.count({ where });
+    
+    // Get paginated results
+    const media = await Media.findAll({
+      where,
+      limit,
+      offset,
+      order: [['createdAt', 'DESC']],
+      attributes: [
+        'id',
+        'originalName',
+        'fileName',
+        'fileType',
+        'fileSize',
+        'filePath',
+        'thumbnailPath',
+        'createdAt',
+        'updatedAt',
+        'metadata',
+        'description',
+        'tags',
+        'isPublic'
+      ]
+    });
+    
+    // Format response
+    const response = {
+      success: true,
+      data: media.map(item => ({
+        id: item.id,
+        originalName: item.originalName,
+        fileType: item.fileType,
+        fileSize: item.fileSize,
+        fileUrl: `/api/media/${item.id}/file`,
+        thumbnailUrl: item.thumbnailPath ? `/api/media/${item.id}/thumbnail` : null,
+        uploadDate: item.createdAt,
+        metadata: item.metadata,
+        description: item.description,
+        tags: item.tags,
+        isPublic: item.isPublic
+      })),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    };
+    
+    res.json(response);
+  } catch (error) {
+    logger.error('Error fetching media:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Error fetching media',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// Get media by ID
+app.get(`${API_BASE_PATH}/media/:id`, async (req, res) => {
+  try {
+    const media = await Media.findByPk(req.params.id, {
+      include: [
+        {
+          model: User,
+          as: 'uploader',
+          attributes: ['id', 'username', 'email']
+        }
+      ]
+    });
+    
+    if (!media) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Media not found' 
+      });
+    }
+    
+    // Check if user has permission to view this media
+    if (!media.isPublic && (!req.user || req.user.id !== media.uploadedBy)) {
+      return res.status(403).json({
+        success: false,
+        error: 'You do not have permission to view this media'
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        id: media.id,
+        originalName: media.originalName,
+        fileType: media.fileType,
+        fileSize: media.fileSize,
+        fileUrl: `/api/media/${media.id}/file`,
+        thumbnailUrl: media.thumbnailPath ? `/api/media/${media.id}/thumbnail` : null,
+        uploadDate: media.createdAt,
+        metadata: media.metadata,
+        description: media.description,
+        tags: media.tags,
+        isPublic: media.isPublic,
+        uploader: media.uploader ? {
+          id: media.uploader.id,
+          username: media.uploader.username,
+          email: media.uploader.email
+        } : null
+      }
+    });
+  } catch (error) {
+    logger.error('Error fetching media:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Error fetching media',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
 });
 
 // Download media
-app.get('/api/media/:id/download', (req, res) => {
-    const media = mediaStore.find(m => m.id === req.params.id);
-
+app.get('/api/media/:id/download', async (req, res) => {
+  try {
+    const media = await Media.findByPk(req.params.id);
+    
+    if (!media || !media.filePath) {
+      return res.status(404).json({
+        success: false,
+        message: 'Media file not found'
+      });
     if (!media || !media.processedPath) {
         return res.status(404).json({
             success: false,
