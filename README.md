@@ -388,6 +388,293 @@ For issues and feature requests, please open an issue in the repository.
 
 ## 🔧 API Endpoints
 
+### Authentication
+
+#### Login
+```http
+POST /api/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "yourpassword"
+}
+```
+
+#### Refresh Token
+```http
+POST /api/auth/refresh-token
+Authorization: Bearer <refresh_token>
+```
+
+### Media Management
+
+#### List Media
+```http
+GET /api/media
+Authorization: Bearer <token>
+```
+
+#### Upload File
+```http
+POST /api/media/upload
+Authorization: Bearer <token>
+Content-Type: multipart/form-data
+
+# Form Data:
+# file: <file>
+# metadata: {"title":"My File","description":"Description"}
+```
+
+#### Get Media
+```http
+GET /api/media/{id}
+Authorization: Bearer <token>
+```
+
+### User Management
+
+#### List Users
+```http
+GET /api/users
+Authorization: Bearer <token>
+```
+
+#### Create User
+```http
+POST /api/users
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "username": "newuser",
+  "password": "securepassword",
+  "email": "user@example.com",
+  "role": "user"
+}
+```
+
+### System Status
+
+#### Health Check
+```http
+GET /api/health
+```
+
+#### System Info
+```http
+GET /api/system/info
+Authorization: Bearer <token>
+```
+
+## 📚 Additional Resources
+
+### WebDAV Clients
+
+#### Linux
+- **Nautilus**: Built-in support (Files > Connect to Server)
+- **Dolphin**: Built-in WebDAV support
+- **rclone**: Command-line tool
+
+#### Windows
+- **File Explorer**: Built-in WebDAV support
+- **WinSCP**: Free SFTP, FTP, WebDAV client
+- **Cyberduck**: Open source client
+
+#### macOS
+- **Finder**: Built-in WebDAV support
+- **Transmit**: Feature-rich FTP/WebDAV client
+- **ForkLift**: Dual-pane file manager
+
+### Monitoring
+
+#### Prometheus Metrics
+```
+GET /metrics
+```
+
+#### Log Files
+- Application logs: `logs/app.log`
+- Access logs: `logs/access.log`
+- Error logs: `logs/error.log`
+
+### Backup and Restore
+
+#### Database Backup
+```bash
+# Create backup
+docker-compose exec medavault-db pg_dump -U postgres medavault > backup_$(date +%Y%m%d).sql
+
+# Restore from backup
+cat backup_file.sql | docker-compose exec -T medavault-db psql -U postgres medavault
+```
+
+#### File Storage Backup
+```bash
+# Backup storage directory
+tar -czvf medavault_storage_backup_$(date +%Y%m%d).tar.gz storage/
+
+# Restore
+mkdir -p storage
+tar -xzvf medavault_storage_backup.tar.gz
+```
+
+## 🚀 Deployment
+
+### Production Deployment
+
+1. **Environment Setup**
+   ```bash
+   # Set production environment
+   echo "NODE_ENV=production" >> .env
+   
+   # Update API URL
+   echo "API_URL=https://yourdomain.com/api" >> .env
+   
+   # Set secure secrets
+   openssl rand -base64 32 | sed 's/[^a-zA-Z0-9]//g' | head -c 32
+   echo "JWT_SECRET=generated_secret_here" >> .env
+   ```
+
+2. **Start in Production Mode**
+   ```bash
+   docker-compose -f docker-compose.prod.yml up -d
+   ```
+
+3. **Set Up Reverse Proxy (Nginx Example)**
+   ```nginx
+   server {
+       listen 80;
+       server_name yourdomain.com;
+       return 301 https://$host$request_uri;
+   }
+
+   server {
+       listen 443 ssl http2;
+       server_name yourdomain.com;
+
+       ssl_certificate /path/to/cert.pem;
+       ssl_certificate_key /path/to/key.pem;
+
+       location / {
+           proxy_pass http://localhost:8085;
+           proxy_http_version 1.1;
+           proxy_set_header Upgrade $http_upgrade;
+           proxy_set_header Connection 'upgrade';
+           proxy_set_header Host $host;
+           proxy_cache_bypass $http_upgrade;
+       }
+
+       location /api {
+           proxy_pass http://localhost:8083;
+           proxy_set_header Host $host;
+           proxy_set_header X-Real-IP $remote_addr;
+       }
+   }
+   ```
+
+## 🧪 Testing
+
+### Run Tests
+```bash
+# Backend tests
+cd medavault-backend
+npm test
+
+# Frontend tests
+cd ../web-dashboard
+npm test
+```
+
+### Test Coverage
+```bash
+# Backend coverage
+cd medavault-backend
+npm run test:coverage
+
+# Frontend coverage
+cd ../web-dashboard
+npm run test:coverage
+```
+
+## 🌟 Features
+
+### Core Features
+- **Secure File Storage**: Encrypted storage with access control
+- **Media Processing**: Automatic thumbnails and metadata extraction
+- **User Management**: Role-based access control
+- **API-First Design**: RESTful API for all operations
+- **Web Interface**: Modern dashboard for easy management
+
+### Advanced Features
+- **WebDAV Support**: Standard protocol integration
+- **File Versioning**: Keep track of file changes
+- **Search**: Full-text search across all content
+- **Tags & Collections**: Organize your media
+- **Sharing**: Share files with external users
+
+## 📈 Monitoring & Analytics
+
+### Built-in Metrics
+- File uploads/downloads
+- Storage usage
+- User activity
+- System performance
+
+### Integration
+- **Prometheus** for metrics collection
+- **Grafana** for visualization
+- **ELK Stack** for log analysis
+
+## 🔄 Upgrade Guide
+
+### Version 1.0.0 to 2.0.0
+1. Backup your data
+2. Update the repository
+3. Run database migrations
+4. Update environment variables
+5. Restart services
+
+## 🤝 Community & Support
+
+### Getting Help
+- [GitHub Issues](https://github.com/wronai/mediacamel/issues) - Report bugs and request features
+- [Discord](https://discord.gg/your-invite) - Join our community
+- [Documentation](https://docs.medavault.example.com) - Full documentation
+
+### Contributing
+We welcome contributions! Please read our [Contributing Guide](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
+
+## 📜 Changelog
+
+### [2.0.0] - 2025-06-13
+#### Added
+- WebDAV server integration
+- File processing pipeline
+- User authentication
+- API documentation
+
+### [1.0.0] - 2025-01-01
+#### Added
+- Initial release
+- Basic file upload/download
+- User management
+- Web interface
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 📧 Contact
+
+For issues and feature requests, please open an issue in the repository.
+
+---
+
+<div align="center">
+  Made with ❤️ by the MedaVault Team
+</div>
+
 ### MedaVault API (Port 8083)
 ```bash
 # Get all media
