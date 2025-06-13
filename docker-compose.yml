@@ -102,15 +102,15 @@ services:
 
   # MedaVault Backend (PostgreSQL + API)
   medavault-db:
-    image: postgres:14
+    image: postgres:14-alpine
     container_name: medavault-db
     env_file: .env
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      TZ: ${TZ:-UTC}
-      PGDATA: /var/lib/postgresql/data/pgdata
+      - POSTGRES_DB=${POSTGRES_DB:-medavault}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - TZ=${TZ:-UTC}
+      - PGDATA=/var/lib/postgresql/data/pgdata
     volumes:
       - medavault-data:/var/lib/postgresql/data
       - ./config/init-db.sql:/docker-entrypoint-initdb.d/init.sql
@@ -123,6 +123,36 @@ services:
       timeout: 5s
       retries: 5
 
+  # MinIO S3 Storage
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
+      - MINIO_SERVER_URL=http://localhost:9000
+      - MINIO_BROWSER=on
+    volumes:
+      - minio-data:/data
+      - ./init-minio.sh:/usr/bin/init-minio.sh
+    command: >
+      /bin/sh -c "
+      /usr/bin/docker-entrypoint.sh minio server /data --console-address ':9001' &
+      sleep 10
+      /usr/bin/init-minio.sh
+      wait"
+    networks:
+      - medavault-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 10
+      start_period: 30s
+
   # MedaVault API
   medavault-backend:
     build:
@@ -131,7 +161,12 @@ services:
     container_name: medavault-backend
     env_file: .env
     ports:
-      - "${BACKEND_PORT}:${BACKEND_PORT}"
+      - "${BACKEND_PORT:-9084}:${BACKEND_PORT:-9084}"
+    depends_on:
+      medavault-db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
     volumes:
       - ./medavault-backend:/app
       - backend-node-modules:/app/node_modules
@@ -146,27 +181,43 @@ services:
       start_period: 20s
     environment:
       - NODE_ENV=${NODE_ENV:-development}
-      - PORT=${BACKEND_PORT}
+      - PORT=${BACKEND_PORT:-9084}
       - BACKEND_HOST=${BACKEND_HOST:-0.0.0.0}
-      - BACKEND_PORT=${BACKEND_PORT}
       - API_BASE_PATH=${API_BASE_PATH:-/api}
       - LOG_LEVEL=${LOG_LEVEL:-info}
+      # Database
       - DB_HOST=medavault-db
       - DB_PORT=5432
-      - DB_NAME=${POSTGRES_DB}
-      - DB_USER=${POSTGRES_USER}
-      - DB_PASSWORD=${POSTGRES_PASSWORD}
-      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@medavault-db:5432/${POSTGRES_DB}
-      - JWT_SECRET=${JWT_SECRET:-your_jwt_secret}
-      - WEBDAV_URL=http://${WEBDAV_HOST:-webdav-server}:${WEBDAV_PORT_HTTP}${WEBDAV_PATH:-/webdav}
-      - WEBDAV_USER=${WEBDAV_USER}
-      - WEBDAV_PASSWORD=${WEBDAV_PASSWORD}
-      - STORAGE_PATH=${STORAGE_PATH:-/app/storage}
-      - PROCESSED_PATH=${PROCESSED_PATH:-/app/processed}
-      - LOG_PATH=${LOG_PATH:-/app/logs}
+      - DB_NAME=${POSTGRES_DB:-medavault}
+      - DB_USER=${POSTGRES_USER:-postgres}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@medavault-db:5432/${POSTGRES_DB:-medavault}
+      # S3 Configuration
+      - S3_ENDPOINT=http://minio:9000
+      - S3_ACCESS_KEY_ID=${MINIO_ROOT_USER:-minioadmin}
+      - S3_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
+      - S3_BUCKET=${S3_BUCKET:-medavault}
+      - S3_REGION=${S3_REGION:-us-east-1}
+      - S3_FORCE_PATH_STYLE=true
+      # WebDAV Configuration
+      - WEBDAV_ENABLED=true
+      - WEBDAV_URL=http://${WEBDAV_HOST:-webdav-server}:${WEBDAV_PORT_HTTP:-9081}${WEBDAV_PATH:-/webdav}
+      - WEBDAV_USERNAME=${WEBDAV_USER:-webdav}
+      - WEBDAV_PASSWORD=${WEBDAV_PASSWORD:-medavault123}
+      # JWT Configuration
+      - JWT_SECRET=${JWT_SECRET:-your_jwt_secret_key_here}
+      - JWT_EXPIRES_IN=7d
+      # File Uploads
+      - UPLOAD_DIR=/app/storage
+      - STORAGE_PATH=/app/storage
+      - PROCESSED_PATH=/app/processed
+      - LOG_PATH=/app/logs
+      - MAX_FILE_SIZE=104857600  # 100MB
+      - ALLOWED_FILE_TYPES=image/*,video/*,application/pdf
+      # CORS
+      - CORS_ORIGIN=*
+      # Timezone
       - TZ=${TZ:-UTC}
-    depends_on:
-      - medavault-db
     networks:
       - medavault-network
     restart: unless-stopped
@@ -214,3 +265,6 @@ volumes:
   medavault-data:
   filestash-data:
   webdav-data:
+  backend-node-modules:
+  minio-data:
+  camel-routes:

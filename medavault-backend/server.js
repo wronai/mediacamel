@@ -384,19 +384,63 @@ app.get(`${API_BASE_PATH}/media/:id`, async (req, res) => {
   }
 });
 
-// Download media
-app.get('/api/media/:id/download', async (req, res) => {
+// Download media file
+app.get(`${API_BASE_PATH}/media/:id/download`, async (req, res) => {
   try {
     const media = await Media.findByPk(req.params.id);
     
-    if (!media || !media.filePath) {
+    if (!media) {
       return res.status(404).json({
         success: false,
-        message: 'Media file not found'
+        error: 'Media not found'
       });
-    if (!media || !media.processedPath) {
-        return res.status(404).json({
-            success: false,
+    }
+    
+    // Check permissions
+    if (!media.isPublic && (!req.user || req.user.id !== media.uploadedBy)) {
+      return res.status(403).json({
+        success: false,
+        error: 'You do not have permission to download this media'
+      });
+    }
+    
+    const filePath = path.join(__dirname, '..', 'storage', media.filePath);
+    
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({
+        success: false,
+        error: 'File not found on server'
+      });
+    }
+    
+    // Set headers for file download
+    res.setHeader('Content-Type', media.metadata?.mimetype || 'application/octet-stream');
+    res.setHeader('Content-Length', media.fileSize);
+    res.setHeader('Content-Disposition', `attachment; filename="${media.originalName}"`);
+    
+    // Stream the file
+    const stream = fs.createReadStream(filePath);
+    stream.on('error', (error) => {
+      logger.error('Error streaming file for download:', error);
+      if (!res.headersSent) {
+        res.status(500).json({
+          success: false,
+          error: 'Error streaming file for download'
+        });
+      }
+    });
+    
+    stream.pipe(res);
+  } catch (error) {
+    logger.error('Error downloading media:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error downloading media',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
             message: 'Media file not found'
         });
     }
@@ -406,116 +450,228 @@ app.get('/api/media/:id/download', async (req, res) => {
     } else {
         res.status(404).json({
             success: false,
-            message: 'Physical file not found'
-        });
-    }
-});
-
-// Get thumbnail
-app.get('/api/media/:id/thumbnail', (req, res) => {
-    const media = mediaStore.find(m => m.id === req.params.id);
-
-    if (!media || !media.thumbnailPath) {
-        return res.status(404).json({
-            success: false,
-            message: 'Thumbnail not found'
-        });
-    }
-
-    if (fs.existsSync(media.thumbnailPath)) {
-        res.sendFile(path.resolve(media.thumbnailPath));
-    } else {
-        res.status(404).json({
-            success: false,
-            message: 'Thumbnail file not found'
-        });
-    }
-});
-
-// Statistics
-app.get(`${API_BASE_PATH}/stats`, (req, res) => {
-    const stats = {
-        totalMedia: mediaStore.length,
-        mediaByType: {
-            image: mediaStore.filter(m => m.fileType === 'image').length,
-            video: mediaStore.filter(m => m.fileType === 'video').length,
-            document: mediaStore.filter(m => m.fileType === 'document').length,
-            generic: mediaStore.filter(m => m.fileType === 'generic').length
-        },
-        mediaBySource: {
-            webdav: mediaStore.filter(m => m.source === 'webdav').length,
-            upload: mediaStore.filter(m => m.source === 'upload').length
-        },
-        totalSize: mediaStore.reduce((sum, m) => sum + (m.size || 0), 0),
-        recentUploads: mediaStore
-            .sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt))
-            .slice(0, 10)
-    };
-
-    res.json({
-        success: true,
-        stats: stats
-    });
-});
-
-// Users endpoint
-app.get('/api/users', (req, res) => {
-    res.json({
-        success: true,
-        users: userStore.map(u => ({ id: u.id, username: u.username, role: u.role }))
-    });
-});
-
-// Helper function to generate thumbnails
-async function generateThumbnail(imagePath, mediaId) {
-    try {
-        const thumbnailDir = './processed/thumbnails';
-        ensureDir(thumbnailDir);
-
-        const thumbnailPath = path.join(thumbnailDir, `${mediaId}_thumb.jpg`);
-
-        await sharp(imagePath)
-            .resize(300, 200, {
-                fit: 'cover',
-                position: 'center'
-            })
-            .jpeg({ quality: 80 })
-            .toFile(thumbnailPath);
-
-        return thumbnailPath;
-    } catch (error) {
-        console.error('Thumbnail generation error:', error);
-        throw error;
-    }
-}
 
 // Error handling middleware
 app.use((error, req, res, next) => {
-    console.error('❌ Server error:', error);
-    res.status(500).json({
-        success: false,
-        message: 'Internal server error',
-        error: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
+  logger.error('Server error:', {
+    message: error.message,
+    stack: error.stack,
+    url: req.originalUrl,
+    method: req.method,
+    params: req.params,
+    query: req.query,
+    body: req.body
+  });
+  
+  // Handle specific error types
+  if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError') {
+    return res.status(400).json({
+      success: false,
+      error: 'Validation error',
+      details: error.errors.map(e => ({
+        field: e.path,
+        message: e.message
+      }))
     });
+  }
+  
+  if (error.name === 'JsonWebTokenError') {
+    return res.status(401).json({
+      success: false,
+      error: 'Invalid token',
+      details: 'The provided authentication token is invalid or has expired'
+    });
+  }
+  
+  if (error.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({
+      success: false,
+      error: 'File too large',
+      details: 'The uploaded file exceeds the maximum allowed size'
+    });
+  }
+  
+  // Default error response
+  res.status(500).json({
+    success: false,
+    error: 'Internal server error',
+    message: process.env.NODE_ENV === 'development' ? error.message : 'An unexpected error occurred',
+    ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
+  });
 });
 
-// 404 handler
-app.use('*', (req, res) => {
-    res.status(404).json({
-        success: false,
-        message: 'Endpoint not found'
-    });
+// 404 handler - Single consolidated handler
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    error: 'Not found',
+    message: `The requested resource ${req.originalUrl} was not found on this server`,
+    timestamp: new Date().toISOString(),
+    path: req.originalUrl
+  });
 });
+
+/**
+ * Graceful shutdown handler
+ * Handles cleanup of resources when the server is shutting down
+ */
+const gracefulShutdown = async () => {
+  logger.info('🛑 Shutting down server gracefully...');
+  
+  try {
+    // Close database connection if it exists
+    if (sequelize) {
+      logger.info('🔌 Closing database connection...');
+      await sequelize.close();
+      logger.info('✅ Database connection closed');
+    }
+    
+    // Close the HTTP server if it exists
+    if (server) {
+      logger.info('🛑 Closing HTTP server...');
+      
+      // Close all connections
+      server.close(() => {
+        logger.info('✅ HTTP server closed');
+        process.exit(0);
+      });
+      
+      // Force close after timeout if needed
+      const forceShutdown = setTimeout(() => {
+        logger.warn('⚠️ Forcing server to stop after timeout');
+        process.exit(1);
+      }, 10000);
+      
+      // Prevent hanging on force shutdown
+      forceShutdown.unref();
+    } else {
+      process.exit(0);
+    }
+  } catch (error) {
+    logger.error('❌ Error during shutdown:', error);
+    process.exit(1);
+  }
+};
+
+// Handle process termination
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  // Consider restarting the service in production
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1);
+  }
+});
+
+/**
+ * Start the Express server
+ */
+const startServer = async () => {
+  try {
+    // Verify database connection before starting
+    if (sequelize) {
+      await sequelize.authenticate();
+      logger.info('✅ Database connection established');
+      
+      // Sync database models
+      await sequelize.sync({ alter: process.env.NODE_ENV !== 'production' });
+      logger.info('🔄 Database models synchronized');
+    }
+    
+    // Start the HTTP server
+    const server = app.listen(PORT, HOST, () => {
+      logger.info(`🚀 Server running in ${NODE_ENV} mode`);
+      logger.info(`🌐 API Base URL: http://${HOST}:${PORT}${API_BASE_PATH}`);
+      logger.info(`📁 WebDAV URL: ${process.env.WEBDAV_URL || `http://${process.env.WEBDAV_HOST || 'localhost'}:${process.env.WEBDAV_PORT_HTTP || 9081}${process.env.WEBDAV_PATH || '/webdav'}`}`);
+      logger.info(`🖼️  Dashboard URL: http://${process.env.DASHBOARD_HOST || 'localhost'}:${process.env.DASHBOARD_PORT || 9085}`);
+      logger.info(`📊 Health check: http://${HOST}:${PORT}${API_BASE_PATH}/health`);
+    });
+    
+    return server;
+  } catch (error) {
+    logger.error('❌ Failed to start server:', error);
+    process.exit(1);
+  }
+};
 
 // Start the server
-const server = app.listen(PORT, HOST, () => {
-    console.log(`🚀 Server is running on http://${HOST}:${PORT}${API_BASE_PATH}`);
-    console.log(`📊 Health check: http://${HOST}:${PORT}${API_BASE_PATH}/health`);
-    console.log(`📁 Media API: http://${HOST}:${PORT}${API_BASE_PATH}/media`);
+const server = startServer();
+
+// Health check endpoint
+app.get(`${API_BASE_PATH}/health`, (req, res) => {
+  const healthcheck = {
+    status: 'UP',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    database: sequelize ? 'CONNECTED' : 'DISCONNECTED',
+    environment: NODE_ENV,
+    memoryUsage: process.memoryUsage(),
+    nodeVersion: process.version,
+    platform: process.platform,
+    arch: process.arch
+  };
+  
+  res.status(200).json(healthcheck);
 });
 
 // Handle server errors
-server.on('error', (error) => {
-    console.error('❌ Server error:', error);
-    process.exit(1);
+if (server) {
+  server.on('error', (error) => {
+    if (error.syscall !== 'listen') {
+      throw error;
+    }
+
+    // Handle specific listen errors with friendly messages
+    switch (error.code) {
+      case 'EACCES':
+        logger.error(`❌ Port ${PORT} requires elevated privileges`);
+        process.exit(1);
+        break;
+      case 'EADDRINUSE':
+        logger.error(`❌ Port ${PORT} is already in use`);
+        process.exit(1);
+        break;
+      case 'EADDRNOTAVAIL':
+        logger.error(`❌ Address not available: ${HOST}:${PORT}`);
+        process.exit(1);
+        break;
+      default:
+        logger.error('❌ Server error:', error);
+        throw error;
+    }
+  });
+}
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  logger.error('⚠️ Uncaught Exception:', error);
+  // Don't exit immediately, let the server continue running
+  // process.exit(1);
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('⚠️ Unhandled Rejection at:', promise, 'reason:', reason);
+  // Consider restarting the service in production
+  if (process.env.NODE_ENV === 'production') {
+    // In production, we might want to restart the process
+    // process.exit(1);
+  }
+});
+
+// Handle process termination signals
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);
+
+// Handle process exit
+process.on('exit', (code) => {
+  logger.info(`Process exiting with code: ${code}`);
+});
+
+// Log unhandled promise rejections
+process.on('warning', (warning) => {
+  logger.warn('⚠️ Node.js warning:', warning);
 });

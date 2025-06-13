@@ -1,6 +1,50 @@
 # MediaCamel - Modern Media Management System
 
-🌐 A complete, containerized media management system with WebDAV support, Apache Camel integration, and a modern web interface.
+🌐 A complete, containerized media management system with WebDAV and S3 support, Apache Camel integration, and a modern web interface.
+
+## 🌟 Features
+
+- **Unified Storage**: Seamlessly manage files across WebDAV and S3 storage backends
+- **Media Processing**: Automatic thumbnail generation and media metadata extraction
+- **Multi-protocol Access**: Access files via WebDAV, S3 API, or the web interface
+- **User Management**: Role-based access control for secure file sharing
+- **Scalable**: Built on Docker and Kubernetes-ready architecture
+- **Self-hosted**: Full control over your data and privacy
+- **Extensible**: Plugin architecture for adding custom processors and integrations
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      Client Applications                        │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
+│  │  Web App    │  │  Mobile App  │  │  3rd Party Clients  │  │
+│  └─────┬───────┘  └──────┬──────┘  └──────────┬──────────┘  │
+│        │                   │                     │              │
+└────────┼───────────────────┼─────────────────────┼──────────────┘
+         │                   │                     │
+         ▼                   ▼                     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      API Gateway (Nginx)                       │
+└───────────────────────────────┬───────────────────────────────┘
+                                │
+                  ┌─────────────┴─────────────┐
+                  │                             │
+                  ▼                             ▼
+┌─────────────────────────┐     ┌─────────────────────────┐
+│   WebDAV Server         │     │   Backend API           │
+│  (Nginx + WebDAV)       │     │  (Node.js + Express)    │
+└───────────┬─────────────┘     └───────────┬─────────────┘
+            │                                 │
+            │                                 │
+            ▼                                 ▼
+┌─────────────────────────┐     ┌─────────────────────────┐
+│   Storage Backend       │     │   Database (PostgreSQL)  │
+│  • Local Filesystem     │     │   - User accounts       │
+│  • S3-Compatible        │     │   - File metadata       │
+│  • WebDAV Mounts        │     │   - Access controls     │
+└─────────────────────────┘     └─────────────────────────┘
+```
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docker](https://img.shields.io/badge/Docker-2CA5E0?style=flat&logo=docker&logoColor=white)](https://www.docker.com/)
@@ -12,6 +56,8 @@
 - Docker 20.10+
 - Docker Compose 2.0+
 - Git
+- At least 2GB RAM (4GB recommended)
+- At least 10GB free disk space
 
 ### Installation
 
@@ -33,13 +79,15 @@
 3. **Configure (optional)**
    Edit the `.env` file to customize your setup:
    ```bash
+   cp .env.example .env
    nano .env
    ```
    
    Key settings to review:
    - `WEBDAV_USER` and `WEBDAV_PASSWORD`
+   - `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD` for S3 access
    - Port configurations if you need to change defaults
-   - Storage paths
+   - Storage paths and S3 bucket settings
 
 4. **Build and start the services**
    ```bash
@@ -47,7 +95,17 @@
    make up
    ```
 
-5. **Verify the installation**
+5. **Access the services**
+   - **Web Interface**: http://localhost:9083
+   - **MinIO Console**: http://localhost:9001 (default credentials: minioadmin/minioadmin)
+   - **API Documentation**: http://localhost:9084/api-docs
+   - **WebDAV Access**: http://localhost:9081/webdav
+
+6. **Verify the installation**
+   Check the logs to ensure all services are running:
+   ```bash
+   make logs
+   ```
    ```bash
    make status
    ```
@@ -312,6 +370,71 @@ mediacamel/
 │   └── backup.sh             # Backup utilities
 └── logs/                     # Application logs
 ```
+
+## 🔄 Storage Configuration
+
+### S3 Storage
+MedaVault uses MinIO as an S3-compatible object storage backend. Files can be accessed using any S3-compatible client.
+
+**Configuration Options**:
+- `S3_ENDPOINT`: MinIO server URL (default: http://minio:9000)
+- `S3_BUCKET`: Default bucket name (default: medavault)
+- `S3_ACCESS_KEY_ID`: Access key for S3 API
+- `S3_SECRET_ACCESS_KEY`: Secret key for S3 API
+- `S3_REGION`: AWS region (default: us-east-1)
+
+**Example using AWS CLI**:
+```bash
+aws --endpoint-url http://localhost:9000 s3 ls s3://medavault
+```
+
+### WebDAV Integration
+WebDAV is fully supported for both client access and as a storage backend.
+
+**Configuration Options**:
+- `WEBDAV_ENABLED`: Enable/disable WebDAV (default: true)
+- `WEBDAV_URL`: Base URL for WebDAV server
+- `WEBDAV_USERNAME`: Authentication username
+- `WEBDAV_PASSWORD`: Authentication password
+
+**Mounting WebDAV on Linux**:
+```bash
+sudo apt install davfs2
+sudo mkdir /mnt/medavault
+sudo mount -t davfs http://localhost:9081/webdav /mnt/medavault
+```
+
+## 🚀 Apache Camel Integration
+
+MedaVault includes Apache Camel routes for advanced file processing and integration:
+
+### Key Features
+- **File Routing**: Automatically route files between different storage backends
+- **Media Processing**: Generate thumbnails, extract metadata, transcode videos
+- **Event-Driven**: React to file changes in real-time
+- **Extensible**: Add custom processors and routes
+
+### Example Route: WebDAV to S3 Sync
+```java
+from("webdav://{{webdav.host}}:{{webdav.port}}{{webdav.path}}?username={{webdav.username}}&password={{webdav.password}}&recursive=true")
+    .routeId("webdav-to-s3")
+    .log("Processing file: ${header.CamelFileName}")
+    .process(exchange -> {
+        // Add custom processing logic here
+        String fileName = exchange.getIn().getHeader("CamelFileName", String.class);
+        exchange.getIn().setHeader("CamelAwsS3Key", "processed/" + fileName);
+    })
+    .to("aws2-s3://{{s3.bucket}}?accessKey={{s3.accessKey}}&secretKey={{s3.secretKey}}®ion={{s3.region}}")
+    .log("Successfully uploaded ${header.CamelFileName} to S3");
+```
+
+### Running Camel Routes
+1. Place your Camel route files in the `camel-routes` directory
+2. Configure the routes in `application.yml`
+3. Restart the backend service:
+   ```bash
+   make restart backend
+   ```
 
 ## 🛠️ System Management
 
