@@ -10,16 +10,16 @@ services:
       - "${WEBDAV_PORT_HTTP}:80"
       - "${WEBDAV_PORT_HTTPS}:443"
     volumes:
-      - ${INCOMING_PATH}:/webdav
+      - webdav-data:/webdav
       - ./config/nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./config/nginx/htpasswd:/etc/nginx/htpasswd:ro
+      - ./config/nginx/htpasswd:/etc/nginx/htpasswd
     environment:
       - PUID=1000
       - PGID=1000
       - TZ=UTC
       - WEBDAV_USER=${WEBDAV_USER:-webdav}
       - WEBDAV_PASSWORD=${WEBDAV_PASSWORD:-medavault123}
-    user: "1000:1000"
+    user: "root"
     networks:
       - medavault-network
     restart: unless-stopped
@@ -33,7 +33,6 @@ services:
       - "${FILESTASH_PORT}:8334"
     volumes:
       - filestash-data:/app/data/state
-      - ./config/filestash:/app/data/state/config:ro
     environment:
       - PUID=1000
       - PGID=1000
@@ -44,7 +43,6 @@ services:
       - medavault-network
     restart: unless-stopped
     user: "1000:1000"
-    entrypoint: sh -c "mkdir -p /app/data/state/logs /app/data/state/plugins /app/data/state/config && chown -R 1000:1000 /app/data/state && /app/filestash"
 
   # Apache Camel Integration Service
   camel-integration:
@@ -128,3 +126,4 @@ networks:
 volumes:
   medavault-data:
   filestash-data:
+  webdav-data:

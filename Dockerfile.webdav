@@ -1,12 +1,12 @@
 FROM nginx:alpine
 
+# Enable the community repository which contains nginx-mod-http-dav-ext
+RUN echo "http://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories
+
 # Install required packages
 RUN apk add --no-cache \
     apache2-utils \
-    nginx-mod-http-dav-ext \
-    nginx-mod-http-auth-pam \
-    nginx-mod-http-echo \
-    nginx-mod-http-subs-filter
+    nginx-mod-http-dav-ext
 
 # Copy configuration
 COPY config/nginx/nginx.conf /etc/nginx/nginx.conf
