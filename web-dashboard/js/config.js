@@ -4,7 +4,7 @@ const config = {
     webdav: {
         httpPort: process.env.WEBDAV_PORT_HTTP || '8081',
         httpsPort: process.env.WEBDAV_PORT_HTTPS || '8443',
-        statusPort: process.env.WEBDAV_STATUS_PORT || '8083',
+        statusPort: process.env.WEBDAV_STATUS_PORT || '8081',
         username: process.env.WEBDAV_USER || 'webdav',
         password: process.env.WEBDAV_PASSWORD || 'medavault123',
         host: process.env.WEBDAV_HOST || 'localhost'

@@ -70,7 +70,7 @@ services:
       - WEBDAV_PORT_HTTP
       - WEBDAV_USER
       - WEBDAV_PASSWORD
-      - BACKEND_HOST=${BACKEND_HOST:-medavault-backend}
+      - BACKEND_HOST=${BACKEND_HOST:-localhost}
       - BACKEND_PORT
     working_dir: /app
     depends_on:
@@ -104,7 +104,7 @@ services:
     container_name: medavault-backend
     env_file: .env
     ports:
-      - "${BACKEND_PORT}:3003"
+      - "${BACKEND_PORT}:8084"
     volumes:
       - ./medavault-backend:/app
       - ${PROCESSED_PATH}:/app/processed
@@ -115,7 +115,7 @@ services:
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${DB_HOST}:${DB_PORT}/${POSTGRES_DB}
       - STORAGE_PATH=/app/processed
       - LOG_LEVEL=${LOG_LEVEL}
-      - BACKEND_HOST=${BACKEND_HOST:-medavault-backend}
+      - BACKEND_HOST=${BACKEND_HOST:-localhost}
       - BACKEND_PORT
       - API_BASE_PATH=${API_BASE_PATH:-/api}
     depends_on:
@@ -137,7 +137,7 @@ services:
     environment:
       - DASHBOARD_PORT
       - DASHBOARD_HOST=${DASHBOARD_HOST:-localhost}
-      - BACKEND_HOST=${BACKEND_HOST:-medavault-backend}
+      - BACKEND_HOST=${BACKEND_HOST:-localhost}
       - BACKEND_PORT
       - WEBDAV_HOST=${WEBDAV_HOST:-webdav-server}
       - WEBDAV_PORT_HTTP

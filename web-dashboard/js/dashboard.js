@@ -150,7 +150,7 @@ async function checkAllServices() {
 // Load system statistics
 async function loadSystemStats() {
     try {
-        const response = await fetch('http://localhost:8083/api/stats');
+        const response = await fetch('http://localhost:8084/api/stats');
 
         if (response.ok) {
             const data = await response.json();
@@ -194,7 +194,7 @@ function updateStats(stats) {
 // Load recent media
 async function loadRecentMedia() {
     try {
-        const response = await fetch('http://localhost:8083/api/media?limit=12');
+        const response = await fetch('http://localhost:8084/api/media?limit=12');
 
         if (response.ok) {
             const data = await response.json();

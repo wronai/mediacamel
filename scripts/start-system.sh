@@ -22,7 +22,7 @@ echo "🔍 Checking service status..."
 echo "📊 Dashboard: http://localhost:8081"
 echo "🌐 WebDAV Server: http://localhost:8081/webdav/"
 echo "📁 Filestash Client: http://localhost:8082"
-echo "🔧 MedaVault API: http://localhost:8083/health"
+echo "🔧 MedaVault API: http://localhost:8084/health"
 
 echo ""
 echo "✅ System started successfully!"

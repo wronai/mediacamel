@@ -1,8 +1,89 @@
-# MedaVault - Secure Media Management System
+# MedaCamel - Modern Media Management System
 
-🌐 A complete media management system with WebDAV support, Apache Camel integration, and a modern web interface.
+🌐 A complete, containerized media management system with WebDAV support, Apache Camel integration, and a modern web interface.
 
-## 🎯 System Architecture
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Docker](https://img.shields.io/badge/Docker-2CA5E0?style=flat&logo=docker&logoColor=white)](https://www.docker.com/)
+[![WebDAV](https://img.shields.io/badge/WebDAV-FF6D00?style=flat&logo=webdav&logoColor=white)](https://en.wikipedia.org/wiki/WebDAV)
+
+## 🚀 Quick Start
+
+### Prerequisites
+- Docker 20.10+
+- Docker Compose 2.0+
+- Git
+
+### Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/yourusername/mediacamel.git
+   cd mediacamel
+   ```
+
+2. **Setup the environment**
+   ```bash
+   make setup
+   ```
+   This will:
+   - Create a `.env` file from `.env.example` if it doesn't exist
+   - Create necessary directories
+   - Set up file permissions
+
+3. **Configure (optional)**
+   Edit the `.env` file to customize your setup:
+   ```bash
+   nano .env
+   ```
+   
+   Key settings to review:
+   - `WEBDAV_USER` and `WEBDAV_PASSWORD`
+   - Port configurations if you need to change defaults
+   - Storage paths
+
+4. **Build and start the services**
+   ```bash
+   make build
+   make up
+   ```
+
+5. **Verify the installation**
+   ```bash
+   make status
+   ```
+   This will show all running services and their status.
+
+4. **Access the services**
+   - Web Dashboard: http://localhost:8085
+   - WebDAV Server: http://localhost:8081
+   - Filestash Client: http://localhost:8082
+   - API: http://localhost:8084/health
+
+## 🛠️ Makefile Commands
+
+```
+make setup       # Setup project environment
+make build      # Build all Docker containers
+make up         # Start all services
+make down       # Stop and remove all containers
+make restart    # Restart all services
+make logs       # Show logs for all services
+make clean      # Remove all containers, networks, and volumes
+make status     # Show service status and URLs
+make test-webdav # Test WebDAV connection
+make test-api   # Test API endpoints
+```
+
+## 🌟 Features
+
+- **WebDAV Server** - Secure file storage with authentication
+- **Filestash Web Client** - Modern web-based file manager
+- **Media Processing** - Automatic processing of uploaded files
+- **RESTful API** - Comprehensive API for media management
+- **Responsive Dashboard** - Clean, modern web interface
+- **Docker Support** - Easy deployment with Docker Compose
+
+## 🏗️ System Architecture
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐    ┌──────────────────┐
@@ -19,15 +100,36 @@
                        └──────────────────┘    └─────────────────┘
 ```
 
-## 🚀 System Components
+## 🔌 Service Ports
 
-### 1. **WebDAV Server** (nginx) - Port 8081
+| Service           | Port  | Description                     |
+|-------------------|-------|---------------------------------|
+| WebDAV Server     | 8081  | WebDAV file access              |
+| Filestash Client  | 8082  | Web-based file manager          |
+| Status Endpoint   | 8084  | WebDAV server status            |
+| MedaVault Backend | 8084  | REST API and business logic     |
+| Web Dashboard     | 8085  | Admin dashboard and monitoring  |
+
+
+## 🛠️ Prerequisites
+
+- Docker 20.10+
+- Docker Compose 2.0+
+- 4GB RAM (minimum)
+- 10GB free disk space
+
+## 🧩 System Components
+
+### 1. **WebDAV Server** (nginx)
+- **Port**: 8081 (HTTP), 8443 (HTTPS)
 - Secure WebDAV server with authentication
 - File upload/download via WebDAV protocol
 - Integration with Filestash and Camel
 - Supports multiple concurrent connections
+- Status endpoint at `:8084/status`
 
-### 2. **Filestash Web Client** - Port 8082
+### 2. **Filestash Web Client**
+- **Port**: 8082
 - Modern web-based file manager
 - Supports multiple protocols: WebDAV, S3, SFTP, Git, and more
 - Drag & drop file uploads
@@ -41,12 +143,20 @@
 - Routes files to appropriate storage
 - Handles error conditions and retries
 
-### 4. **MedaVault Backend API** - Port 8083
+### 4. **MedaVault Backend API**
+- **Port**: 8084
 - RESTful API for media management
 - PostgreSQL database for metadata
 - User authentication and authorization
 - Media processing and transformation
 - Search and filtering capabilities
+
+### 5. **Web Dashboard**
+- **Port**: 8085
+- Real-time service monitoring
+- System status overview
+- Quick access to all services
+- Responsive design for all devices
 
 ### 5. **Web Dashboard** - Port 8085
 - System monitoring and statistics
@@ -86,7 +196,7 @@ chmod +x setup.sh
 - **🌐 Web Dashboard:** http://localhost:8085
 - **📁 WebDAV Server:** http://localhost:8081
 - **🖥️ Filestash Client:** http://localhost:8082
-- **🔧 API Documentation:** http://localhost:8083/api-docs
+- **🔧 API Documentation:** http://localhost:8084/api-docs
 
 ### 4. WebDAV Credentials
 ```
@@ -289,7 +399,7 @@ camel.poll.delay=5000
 camel.cleanup.processed=true
 
 # MedaVault API
-medavault.api.url=http://medavault-backend:3003/api
+medavault.api.url=http://medavault-backend:8084/api
 ```
 
 ## 🛡️ Security
@@ -304,7 +414,7 @@ Always use HTTPS with a valid SSL certificate in production environments.
 Restrict access to ports:
 - 8085 (Dashboard) - Admin access only
 - 8081, 8082 (WebDAV/Filestash) - Trusted networks only
-- 8083 (API) - Internal access recommended
+- 8084 (API) - Internal access recommended
 
 ### 4. Regular Updates
 Keep all components updated:
@@ -565,7 +675,7 @@ tar -xzvf medavault_storage_backup.tar.gz
 
 
        location /api {
-           proxy_pass http://localhost:8083;
+           proxy_pass http://localhost:8084;
            proxy_set_header Host $host;
            proxy_set_header X-Real-IP $remote_addr;
        }
@@ -674,7 +784,7 @@ For issues and feature requests, please open an issue in the repository.
   Made with ❤️ by the MedaVault Team
 </div>
 
-### MedaVault API (Port 8083)
+### MedaVault API (Port 8084)
 ```bash
 # Get all media
 GET /api/media
