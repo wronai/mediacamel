@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
@@ -7,7 +8,9 @@ const sharp = require('sharp');
 const { v4: uuidv4 } = require('uuid');
 
 const app = express();
-const PORT = process.env.PORT || 8084;
+const PORT = process.env.BACKEND_PORT || 9084;
+const HOST = process.env.BACKEND_HOST || '0.0.0.0';
+const API_BASE_PATH = process.env.API_BASE_PATH || '/api';
 
 // Middleware
 app.use(cors());
@@ -37,7 +40,7 @@ ensureDir('./processed/thumbnails');
 // Routes
 
 // Health check
-app.get('/health', (req, res) => {
+app.get(`${API_BASE_PATH}/health`, (req, res) => {
     res.json({
         status: 'healthy',
         timestamp: new Date().toISOString(),
@@ -46,7 +49,7 @@ app.get('/health', (req, res) => {
 });
 
 // Get all media
-app.get('/api/media', (req, res) => {
+app.get(`${API_BASE_PATH}/media`, (req, res) => {
     const { type, user, limit = 50 } = req.query;
 
     let filteredMedia = mediaStore;
@@ -70,7 +73,7 @@ app.get('/api/media', (req, res) => {
 });
 
 // Upload/Process media from Camel
-app.post('/api/media', (req, res) => {
+app.post(`${API_BASE_PATH}/media`, (req, res) => {
     try {
         const {
             filename,
@@ -138,7 +141,7 @@ app.post('/api/media', (req, res) => {
 });
 
 // Get specific media
-app.get('/api/media/:id', (req, res) => {
+app.get(`${API_BASE_PATH}/media/:id`, (req, res) => {
     const media = mediaStore.find(m => m.id === req.params.id);
 
     if (!media) {
@@ -197,7 +200,7 @@ app.get('/api/media/:id/thumbnail', (req, res) => {
 });
 
 // Statistics
-app.get('/api/stats', (req, res) => {
+app.get(`${API_BASE_PATH}/stats`, (req, res) => {
     const stats = {
         totalMedia: mediaStore.length,
         mediaByType: {
@@ -271,8 +274,15 @@ app.use('*', (req, res) => {
     });
 });
 
-app.listen(PORT, () => {
-    console.log(`🚀 MedaVault Backend running on port ${PORT}`);
-    console.log(`📊 Health check: http://localhost:${PORT}/health`);
-    console.log(`📁 Media API: http://localhost:${PORT}/api/media`);
+// Start the server
+const server = app.listen(PORT, HOST, () => {
+    console.log(`🚀 Server is running on http://${HOST}:${PORT}${API_BASE_PATH}`);
+    console.log(`📊 Health check: http://${HOST}:${PORT}${API_BASE_PATH}/health`);
+    console.log(`📁 Media API: http://${HOST}:${PORT}${API_BASE_PATH}/media`);
+});
+
+// Handle server errors
+server.on('error', (error) => {
+    console.error('❌ Server error:', error);
+    process.exit(1);
 });

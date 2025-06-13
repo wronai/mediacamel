@@ -37,12 +37,24 @@ class WebDAVCamelProcessor extends RouteBuilder {
     }
 
     void setDefaultProperties() {
-        props.setProperty("webdav.url", "http://localhost:8081/webdav")
-        props.setProperty("webdav.username", "webdav")
-        props.setProperty("webdav.password", "medavault123")
-        props.setProperty("medavault.api.url", "http://localhost:8084/api")
-        props.setProperty("poll.interval", "10000")
-        props.setProperty("processing.enabled", "true")
+        // Load environment variables
+        def env = System.getenv()
+        
+        // Set WebDAV properties from environment variables with fallbacks
+        props.setProperty("webdav.url", 
+            env.WEBDAV_URL ?: "http://${env.WEBDAV_HOST ?: 'localhost'}:${env.WEBDAV_PORT_HTTP ?: '9081'}${env.WEBDAV_PATH ?: '/webdav'}")
+            
+        props.setProperty("webdav.username", env.WEBDAV_USER ?: 'webdav')
+        props.setProperty("webdav.password", env.WEBDAV_PASSWORD ?: 'medavault123')
+        
+        // Set MedaVault API URL from environment variables with fallback
+        def apiBasePath = env.API_BASE_PATH ?: '/api'
+        props.setProperty("medavault.api.url", 
+            "http://${env.BACKEND_HOST ?: 'localhost'}:${env.BACKEND_PORT ?: '9084'}${apiBasePath}")
+            
+        // Set processing options
+        props.setProperty("poll.interval", env.POLL_INTERVAL ?: '10000')
+        props.setProperty("processing.enabled", env.PROCESSING_ENABLED ?: 'true')
     }
 
     void configure() throws Exception {
@@ -282,8 +294,17 @@ class WebDAVCamelProcessor extends RouteBuilder {
 
 // Main execution
 println "🚀 Starting WebDAV-Camel-MedaVault Integration..."
-println "🌐 WebDAV Server: ${System.getenv('WEBDAV_URL') ?: 'http://localhost:8081/webdav'}"
-println "🎯 MedaVault API: ${System.getenv('MEDAVAULT_API') ?: 'http://localhost:8084/api'}"
+println "⚙️  Loading configuration from environment variables"
+
+// Load environment variables
+def env = System.getenv()
+
+def webdavUrl = env.WEBDAV_URL ?: "http://${env.WEBDAV_HOST ?: 'localhost'}:${env.WEBDAV_PORT_HTTP ?: '9081'}${env.WEBDAV_PATH ?: '/webdav'}"
+def apiBasePath = env.API_BASE_PATH ?: '/api'
+def medavaultApiUrl = "http://${env.BACKEND_HOST ?: 'localhost'}:${env.BACKEND_PORT ?: '9084'}${apiBasePath}"
+
+println "🌐 WebDAV Server: ${webdavUrl}"
+println "🎯 MedaVault API: ${medavaultApiUrl}"
 
 CamelContext context = new DefaultCamelContext()
 context.addRoutes(new WebDAVCamelProcessor())

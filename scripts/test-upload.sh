@@ -17,7 +17,7 @@ for file in test-files/*; do
 
     curl -u webdav:medavault123 \
          -T "$file" \
-         "http://localhost:8081/webdav/$filename"
+         "http://localhost:9081/webdav/$filename"
 
     if [ $? -eq 0 ]; then
         echo "✅ Successfully uploaded: $filename"
@@ -27,5 +27,5 @@ for file in test-files/*; do
 done
 
 echo ""
-echo "🔍 Check the dashboard at http://localhost:8081 to see processed files"
-echo "📁 Or browse WebDAV at http://localhost:8081/webdav/"
+echo "🔍 Check the dashboard at http://localhost:9085 to see processed files"
+echo "📁 Or browse WebDAV at http://localhost:9081/webdav/"
